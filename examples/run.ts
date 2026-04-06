@@ -22,6 +22,7 @@
  * @path examples/run.ts
  */
 
+import "dotenv/config";
 import { parse as parseYaml } from "yaml";
 import Redis from "ioredis";
 import {
@@ -50,7 +51,12 @@ import {
   NotifierRegistry,
   // Platform adapters
   ClaudeCodeRuntimePlatformAdapter,
-  // Types
+  // Skill registry
+  FileSystemSkillRegistry,
+  // Team repository
+  FileSystemTeamRepository,
+  JsonTeamDocumentCodec,
+  createYamlTeamDocumentCodec,
   type FrameworkRuntime,
   type WorkflowRequest,
   type TenantScope,
@@ -221,13 +227,16 @@ function createLLMGateway() {
       const client = new OpenAISDKClient({ apiKey, baseURL });
       return {
         generate: async (request: unknown) => {
+          const req = request as { modelProfile: { providerModelId?: string; model?: string }; prompts: Array<{ role: string; content: string }>; maxOutputTokens: number };
+          // Support both 'providerModelId' (AgentDefinition type) and 'model' (team YAML format)
+          const modelId = req.modelProfile.providerModelId ?? req.modelProfile.model ?? "local-model";
           const response = await client.create({
-            model: (request as { modelProfile: { providerModelId: string } }).modelProfile.providerModelId,
-            input: (request as { prompts: Array<{ role: string; content: string }> }).prompts.map(p => ({
+            model: modelId,
+            input: req.prompts.map(p => ({
               role: p.role as "user" | "assistant" | "system",
               content: [{ type: "text" as const, text: p.content }],
             })),
-            max_output_tokens: (request as { maxOutputTokens: number }).maxOutputTokens,
+            max_output_tokens: req.maxOutputTokens,
           });
           return {
             provider: "openai" as const, // Uses openai adapter under the hood
@@ -557,24 +566,41 @@ async function main(): Promise<void> {
     // Step 4: Create Agent Runtimes and Orchestrator
     // ─────────────────────────────────────────────────────────────────────────
     console.log("[4/5] Creating Agent Runtimes and Orchestrator...");
-    const helloAgent = createHelloWorldAgent();
-    const researchAgent = createResearchAgent();
 
-    // Use simple text runtime for local providers (LM Studio, Ollama)
-    // Use standard platform runtime for cloud providers (OpenAI, Anthropic)
+    const skillRegistry = new FileSystemSkillRegistry({
+      rootDirectory: CONFIG.paths.skillsRoot + "/dev",
+      parseYaml,
+    });
+
+    const teamRepository = new FileSystemTeamRepository(
+      { rootDirectory: CONFIG.paths.teamsRoot },
+      [
+        new JsonTeamDocumentCodec(),
+        createYamlTeamDocumentCodec(parseYaml),
+      ],
+      skillRegistry,
+    );
+
+    // Load team from filesystem and create agent runtimes
+    const team = await teamRepository.get(CONFIG.scope, CONFIG.teamId);
+    if (!team) {
+      throw new Error(`Team "${CONFIG.teamId}" not found in ${CONFIG.paths.teamsRoot}`);
+    }
+    console.log(`      Loaded team: ${team.name} (${team.agents.length} agents) ✓`);
+
+    // Create agent runtimes from team agents
     let agentRuntimes: AgentRuntime[];
     
     if (CONFIG.provider === "lmstudio" || CONFIG.provider === "ollama") {
       // Local LLMs use simple text runtime (no JSON mode required)
-      agentRuntimes = [
-        new SimpleTextAgentRuntime(helloAgent, llmGateway),
-        new SimpleTextAgentRuntime(researchAgent, llmGateway),
-      ];
+      agentRuntimes = team.agents.map(
+        (agent) => new SimpleTextAgentRuntime(agent as AgentDefinition, llmGateway)
+      );
     } else {
       // Cloud providers use standard platform adapter with JSON mode
       const platformAdapter = new ClaudeCodeRuntimePlatformAdapter();
       agentRuntimes = createPlatformAgentRuntimes({
-        agents: [helloAgent, researchAgent],
+        agents: team.agents as AgentDefinition[],
         platformAdapter,
         runtimeDependencies: {
           llmGateway,
@@ -591,26 +617,12 @@ async function main(): Promise<void> {
     const workflowStateStore = new WorkflowBackendStateStoreAdapter(workflowBackend);
 
     const orchestrator = new ProductionOrchestrator({
-      teamRepository: {
-        get: async () => ({
-          id: CONFIG.teamId,
-          name: "Demo Team",
-          entryAgentId: helloAgent.id,
-          agents: [helloAgent, researchAgent],
-          routingRules: [],
-          runtimeTarget: "claude-code" as const,
-        }),
-        list: async () => [CONFIG.teamId],
-      } as any,
+      teamRepository,
       agentRegistry,
       workflowStore: workflowStateStore,
       sessionStateStore,
       memoryStore,
-      skillRegistry: {
-        list: async () => [],
-        get: async () => null,
-        put: async () => {},
-      } as any,
+      skillRegistry,
       taskRouter: new DeclarativeTaskRouter(),
       messageBus: {
         publish: async () => {},

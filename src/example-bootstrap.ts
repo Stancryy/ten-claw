@@ -129,6 +129,7 @@ export async function createExampleRuntime(
       new JsonTeamDocumentCodec(),
       createYamlTeamDocumentCodec(deps.parseYaml),
     ],
+    skillRegistry,
   );
   const team = await requireTeam(teamRepository, deps.scope, deps.teamId);
   const platformAdapter = selectRuntimePlatformAdapter(team.runtimeTarget ?? "claude-code");

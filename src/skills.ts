@@ -269,6 +269,169 @@ function isNotFoundError(error: unknown): boolean {
   );
 }
 
+/** Schema type for skill document validation. Mirrors SkillDefinition structure for runtime validation. */
+export interface SkillSchema {
+  schemaVersion: string;
+  id: string;
+  name: string;
+  version: string;
+  description: string;
+  tags: string[];
+  role: string;
+  inputSchema: Record<string, unknown>;
+  outputSchema: Record<string, unknown>;
+  capabilities?: string[];
+  preferredRuntimeTargets?: string[];
+  routingHints?: string[];
+  promptRef?: string;
+  examples?: Record<string, unknown>[];
+  securityNotes?: string[];
+  metadata?: Record<string, unknown>;
+}
+
+/** Required fields for a valid skill document. */
+const SKILL_REQUIRED_FIELDS: Array<keyof SkillSchema> = [
+  "schemaVersion",
+  "id",
+  "name",
+  "version",
+  "description",
+  "tags",
+  "role",
+  "inputSchema",
+  "outputSchema",
+];
+
+/**
+ * FileSystemSkillRegistry loads skills from a specific directory on the filesystem.
+ * Implements SkillRegistry with YAML/JSON support and strict validation.
+ * Throws descriptive errors if referenced skills are missing.
+ */
+export class FileSystemSkillRegistry implements SkillRegistry {
+  private readonly codec: SkillDocumentCodec;
+  private skillsCache: Map<string, SkillDefinition> | null = null;
+  private lastLoadTime = 0;
+
+  /**
+   * Creates a file-backed skill registry rooted in a specific directory.
+   * @param config.rootDirectory - Directory to load skills from (e.g., "./skills/dev")
+   * @param config.parseYaml - YAML parser function (e.g., from `yaml` package)
+   * @param config.cacheTtlMs - Cache time-to-live in milliseconds (default: 5000)
+   */
+  constructor(
+    private readonly config: {
+      rootDirectory: string;
+      parseYaml: (content: string) => unknown;
+      cacheTtlMs?: number;
+    }
+  ) {
+    this.codec = createYamlSkillDocumentCodec(config.parseYaml);
+  }
+
+  /** Lists all skills available in the configured directory. */
+  async list(scope: TenantScope): Promise<SkillDefinition[]> {
+    await this.ensureLoaded(scope);
+    return [...(this.skillsCache?.values() ?? [])];
+  }
+
+  /**
+   * Gets a specific skill by ID.
+   * Throws a descriptive error if the skill is not found.
+   */
+  async get(scope: TenantScope, skillId: SkillId): Promise<SkillDefinition | null> {
+    await this.ensureLoaded(scope);
+    
+    const skill = this.skillsCache?.get(skillId);
+    if (!skill) {
+      const available = [...(this.skillsCache?.keys() ?? [])].join(", ") || "none";
+      throw new Error(
+        `Skill "${skillId}" not found in ${this.config.rootDirectory}. ` +
+        `Available skills: ${available}. ` +
+        `Ensure the skill file exists (e.g., ${this.config.rootDirectory}/${skillId}.yaml)`
+      );
+    }
+    return skill;
+  }
+
+  /**
+   * Put operation is not supported for read-only filesystem registry.
+   * Use CompositeSkillRegistry if you need to persist learned skills.
+   */
+  async put(_scope: TenantScope, _skill: SkillDefinition): Promise<void> {
+    throw new Error(
+      "FileSystemSkillRegistry is read-only. " +
+      "Use CompositeSkillRegistry with a SkillPersistenceStore to save learned skills."
+    );
+  }
+
+  /** Clears the in-memory cache to force reload on next access. */
+  clearCache(): void {
+    this.skillsCache = null;
+    this.lastLoadTime = 0;
+  }
+
+  /** Validates a skill against the schema without loading it into the registry. */
+  validateSkill(skill: unknown, source: string): asserts skill is SkillDefinition {
+    validateSkillDefinition(skill as SkillDefinition, source);
+  }
+
+  private async ensureLoaded(scope: TenantScope): Promise<void> {
+    const ttl = this.config.cacheTtlMs ?? 5000;
+    const now = Date.now();
+    
+    if (this.skillsCache && now - this.lastLoadTime < ttl) {
+      return;
+    }
+
+    await this.loadAll(scope);
+  }
+
+  private async loadAll(scope: TenantScope): Promise<void> {
+    const skills = new Map<string, SkillDefinition>();
+    const directory = this.config.rootDirectory;
+
+    try {
+      const filePaths = await walkFiles(directory);
+      
+      for (const filePath of filePaths) {
+        if (!this.isSupportedFile(filePath)) continue;
+        
+        try {
+          const skill = await this.readSkillFile(filePath);
+          if (skill) {
+            skills.set(skill.id, skill);
+          }
+        } catch (error) {
+          console.error(`Failed to load skill from ${filePath}:`, error);
+        }
+      }
+    } catch (error) {
+      if (isNotFoundError(error)) {
+        throw new Error(
+          `Skill directory not found: ${directory}. ` +
+          `Create the directory and add skill YAML files.`
+        );
+      }
+      throw error;
+    }
+
+    this.skillsCache = skills;
+    this.lastLoadTime = Date.now();
+  }
+
+  private isSupportedFile(filePath: string): boolean {
+    const ext = extname(filePath).toLowerCase();
+    return this.codec.extensions.includes(ext) || ext === ".json";
+  }
+
+  private async readSkillFile(filePath: string): Promise<SkillDefinition | null> {
+    const content = await readFile(filePath, "utf8");
+    const parsed = this.codec.parse<SkillDefinition>(content, filePath);
+    validateSkillDefinition(parsed, filePath);
+    return parsed;
+  }
+}
+
 // TODO:
 // - Add schema validation against `inputSchema` and `outputSchema` before registry writes.
 // - Add hot-reload caching with mtime invalidation for large skill libraries.

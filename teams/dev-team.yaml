@@ -39,9 +39,6 @@ agents:
       - skillId: "dev.task-planning"
         mode: "primary"
         required: true
-      - skillId: "dev.requirement-analysis"
-        mode: "supporting"
-        required: false
     systemPromptRef: "prompts/dev/planner.md"
     modelProfile:
       provider: "anthropic"
@@ -103,9 +100,6 @@ agents:
       - skillId: "dev.typescript-coding"
         mode: "primary"
         required: true
-      - skillId: "dev.test-generation"
-        mode: "supporting"
-        required: false
     systemPromptRef: "prompts/dev/coder.md"
     modelProfile:
       provider: "openai"
@@ -168,9 +162,6 @@ agents:
       - skillId: "dev.typescript-code-review"
         mode: "primary"
         required: true
-      - skillId: "dev.security-audit"
-        mode: "validation"
-        required: false
     systemPromptRef: "prompts/dev/reviewer.md"
     modelProfile:
       provider: "anthropic"

@@ -1,0 +1,158 @@
+# File: skills/dev/code-review.yaml
+schemaVersion: "1.0.0"
+id: "dev.typescript-code-review"
+name: "TypeScript Code Review"
+version: "1.0.0"
+description: |
+  Reviews code for correctness, type safety, regressions, and policy compliance.
+  Identifies bugs, security vulnerabilities, performance issues, and style violations.
+  Provides actionable feedback with suggested fixes and risk assessments.
+tags:
+  - "code-review"
+  - "typescript"
+  - "quality-assurance"
+  - "bug-detection"
+  - "security-review"
+role: "reviewer"
+inputSchema:
+  type: "object"
+  required: ["code", "originalStep"]
+  properties:
+    code:
+      type: "array"
+      description: "Files to review"
+      items:
+        type: "object"
+        required: ["filePath", "content", "operation"]
+        properties:
+          filePath:
+            type: "string"
+          content:
+            type: "string"
+          operation:
+            type: "string"
+            enum: ["create", "update", "delete"]
+    originalStep:
+      type: "object"
+      description: "The implementation step this code should fulfill"
+      properties:
+        id:
+          type: "string"
+        description:
+          type: "string"
+        acceptanceCriteria:
+          type: "array"
+          items:
+            type: "string"
+    context:
+      type: "object"
+      description: "Review context"
+      properties:
+        codebasePatterns:
+          type: "array"
+          items:
+            type: "string"
+        previousFeedback:
+          type: "array"
+          items:
+            type: "string"
+        iterationCount:
+          type: "number"
+outputSchema:
+  type: "object"
+  required: ["verdict", "findings"]
+  properties:
+    verdict:
+      type: "string"
+      enum: ["approved", "needs-revision", "rejected"]
+      description: "Overall review decision"
+    findings:
+      type: "array"
+      description: "Individual review findings"
+      items:
+        type: "object"
+        required: ["severity", "filePath", "message"]
+        properties:
+          severity:
+            type: "string"
+            enum: ["critical", "error", "warning", "info", "suggestion"]
+            description: "Impact level of this finding"
+          filePath:
+            type: "string"
+          line:
+            type: "number"
+          column:
+            type: "number"
+          message:
+            type: "string"
+            description: "Description of the issue or suggestion"
+          suggestedFix:
+            type: "string"
+            description: "Proposed fix or code snippet"
+          category:
+            type: "string"
+            enum: ["bug", "security", "performance", "type-safety", "style", "documentation", "testing"]
+    summary:
+      type: "string"
+      description: "Executive summary of review results"
+    acceptanceCriteriaMet:
+      type: "array"
+      items:
+        type: "object"
+        properties:
+          criterion:
+            type: "string"
+          met:
+            type: "boolean"
+          notes:
+            type: "string"
+    revisionGuidance:
+      type: "object"
+      description: "If needs-revision, specific guidance for the coder"
+      properties:
+        priorityIssues:
+          type: "array"
+          items:
+            type: "string"
+        approachSuggestions:
+          type: "array"
+          items:
+            type: "string"
+    riskAssessment:
+      type: "object"
+      properties:
+        overallRisk:
+          type: "string"
+          enum: ["low", "medium", "high", "critical"]
+        securityConcerns:
+          type: "array"
+          items:
+            type: "string"
+        breakingChanges:
+          type: "boolean"
+capabilities:
+  - "code-review"
+  - "bug-detection"
+  - "type-checking"
+  - "security-audit"
+  - "performance-analysis"
+  - "style-validation"
+preferredRuntimeTargets:
+  - "claude-code"
+routingHints:
+  - "final-step-in-pipeline"
+  - "validates-coder-output"
+promptRef: "prompts/dev/reviewer.md"
+securityNotes:
+  - "Does not modify code - only reviews and reports"
+  - "Flags security issues but does not exploit them"
+  - "Identifies secrets or credentials in code"
+metadata:
+  author: "tenclaw-framework"
+  domain: "software-delivery"
+  language: "typescript"
+  usageExamples:
+    - input:
+        code: [{ filePath: "src/user.ts", content: "class User { ... }", operation: "create" }]
+        originalStep: { id: "1", description: "Create User class", acceptanceCriteria: ["Has name property"] }
+      expectedOutput: "Review verdict with any type errors, bugs, or style issues found"

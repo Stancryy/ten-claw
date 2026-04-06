@@ -1,0 +1,147 @@
+# File: skills/dev/typescript-coding.yaml
+schemaVersion: "1.0.0"
+id: "dev.typescript-coding"
+name: "TypeScript Coding"
+version: "1.0.0"
+description: |
+  Generates and updates TypeScript code based on approved implementation plans.
+  Follows strict typing practices, produces clean code, and includes appropriate
+  error handling and documentation.
+tags:
+  - "typescript"
+  - "coding"
+  - "implementation"
+  - "code-generation"
+  - "refactoring"
+role: "coder"
+inputSchema:
+  type: "object"
+  required: ["plan", "step"]
+  properties:
+    plan:
+      type: "object"
+      description: "The complete implementation plan from the planner"
+      properties:
+        plan:
+          type: "string"
+        steps:
+          type: "array"
+    step:
+      type: "object"
+      description: "The specific step this coder should implement"
+      required: ["id", "description", "acceptanceCriteria"]
+      properties:
+        id:
+          type: "string"
+        description:
+          type: "string"
+        acceptanceCriteria:
+          type: "array"
+          items:
+            type: "string"
+        dependencies:
+          type: "array"
+          items:
+            type: "string"
+    context:
+      type: "object"
+      description: "Codebase context and constraints"
+      properties:
+        existingFiles:
+          type: "array"
+          items:
+            type: "string"
+        techStack:
+          type: "array"
+          items:
+            type: "string"
+        patterns:
+          type: "array"
+          items:
+            type: "string"
+          description: "Established patterns to follow"
+outputSchema:
+  type: "object"
+  required: ["code", "summary"]
+  properties:
+    code:
+      type: "array"
+      description: "Generated or modified code files"
+      items:
+        type: "object"
+        required: ["filePath", "content", "operation"]
+        properties:
+          filePath:
+            type: "string"
+            description: "Relative path to the file"
+          content:
+            type: "string"
+            description: "Complete file content"
+          operation:
+            type: "string"
+            enum: ["create", "update", "delete"]
+            description: "Type of operation performed"
+          explanation:
+            type: "string"
+            description: "Why this file was created/modified"
+    summary:
+      type: "string"
+      description: "Brief summary of changes made"
+    tests:
+      type: "array"
+      description: "Suggested test cases"
+      items:
+        type: "object"
+        properties:
+          description:
+            type: "string"
+          testType:
+            type: "string"
+            enum: ["unit", "integration", "e2e"]
+    dependencies:
+      type: "array"
+      description: "New dependencies required"
+      items:
+        type: "object"
+        properties:
+          name:
+            type: "string"
+          version:
+            type: "string"
+          devDependency:
+            type: "boolean"
+    typeDefinitions:
+      type: "array"
+      description: "New or modified TypeScript types/interfaces"
+      items:
+        type: "object"
+        properties:
+          name:
+            type: "string"
+          definition:
+            type: "string"
+capabilities:
+  - "typescript-generation"
+  - "type-safe-coding"
+  - "error-handling"
+  - "clean-code"
+  - "documentation"
+preferredRuntimeTargets:
+  - "claude-code"
+routingHints:
+  - "implements-planned-steps"
+  - "generates-typescript-code"
+promptRef: "prompts/dev/coder.md"
+securityNotes:
+  - "Validates all inputs before processing"
+  - "Does not execute arbitrary code"
+  - "File operations are suggestions only - require approval"
+metadata:
+  author: "tenclaw-framework"
+  domain: "software-delivery"
+  language: "typescript"
+  usageExamples:
+    - input:
+        plan: { steps: [{ id: "1", description: "Create UserService class" }] }
+        step: { id: "1", description: "Create UserService class", acceptanceCriteria: ["Has createUser method"] }
+      expectedOutput: "TypeScript code with UserService class and createUser method"
