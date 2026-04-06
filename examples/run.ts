@@ -668,121 +668,104 @@ async function main(): Promise<void> {
     console.log("      Orchestrator ready ✓");
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Step 5: Run Test Tasks
+    // Step 5: Run Coding Task through planner → coder → reviewer pipeline
     // ─────────────────────────────────────────────────────────────────────────
-    console.log("[5/5] Running Test Tasks...");
+    console.log("[5/5] Running Coding Task through Development Delivery Team...");
     console.log();
-
-    // Test 1: Hello World
     console.log("─".repeat(60));
-    console.log("Test 1: Hello World Task");
+    console.log("Task: Email Validator with Jest Tests");
     console.log("─".repeat(60));
 
-    const helloRequest: any = {
+    const codingTask: any = {
       requesterId: `req-${Date.now()}`,
       scope: CONFIG.scope,
       teamId: CONFIG.teamId,
       sessionId: `sess-${Date.now()}`,
-      goal: "Say hello and introduce yourself briefly",
-      input: {},
+      goal: "Create a TypeScript function that validates an email address using regex, with unit tests using Jest",
+      input: {
+        requirements: [
+          "Function name: isValidEmail(email: string): boolean",
+          "Must validate email format using regex",
+          "Must handle edge cases (empty string, null, undefined)",
+          "Include comprehensive Jest unit tests",
+          "Tests should cover valid emails, invalid emails, and edge cases"
+        ],
+        constraints: [
+          "TypeScript with strict typing",
+          "Jest for testing framework",
+          "No external validation libraries - pure regex"
+        ]
+      },
     };
 
-    console.log("Starting workflow...");
-    const helloRunId = await orchestrator.startWorkflow(helloRequest);
-    console.log(`Run ID: ${helloRunId}`);
-
-    // Wait a moment for completion (in real scenario, this would poll or use callbacks)
-    await new Promise(resolve => setTimeout(resolve, 3000));
-
-    // Check result and send notification
-    const helloRun = await workflowStateStore.get(CONFIG.scope, helloRunId);
-    console.log(`Status: ${helloRun?.status}`);
-    if (helloRun?.lastError) {
-      console.log(`Error: ${JSON.stringify(helloRun.lastError, null, 2)}`);
-    }
-    if (helloRun?.result) {
-      console.log(`Result: ${JSON.stringify(helloRun.result, null, 2)}`);
-    }
-
-    // Send Telegram notification for completed workflow
-    const telegramNotifier = notifierRegistry.get("telegram");
-    if (telegramNotifier && helloRun) {
-      try {
-        await telegramNotifier.send({
-          id: `notif-${Date.now()}`,
-          scope: CONFIG.scope,
-          channel: "telegram",
-          destination: process.env.TELEGRAM_CHAT_ID ?? "",
-          title: `Workflow Completed: ${helloRequest.goal}`,
-          body: `Status: ${helloRun.status}\n\nResult: ${helloRun.result?.summary ?? "No summary available"}`,
-          runId: helloRunId,
-        });
-        console.log("      Telegram notification sent ✓");
-      } catch (notifError) {
-        console.error("      Telegram notification failed:", notifError instanceof Error ? notifError.message : String(notifError));
-        if (notifError instanceof Error && notifError.stack) {
-          console.error("      Stack:", notifError.stack);
-        }
-      }
-    } else {
-      console.log("      Telegram notifier not available, skipping notification");
-    }
-
+    console.log("Starting workflow with Development Delivery Team...");
+    console.log(`  Team: ${team.name} (${team.agents.map(a => a.name).join(" → ")})`);
+    console.log(`  Goal: ${codingTask.goal}`);
     console.log();
 
-    // Test 2: Research Task
-    console.log("─".repeat(60));
-    console.log("Test 2: Research Task");
-    console.log("─".repeat(60));
+    const runId = await orchestrator.startWorkflow(codingTask);
+    console.log(`Run ID: ${runId}`);
+    console.log();
 
-    const researchRequest: any = {
-      requesterId: `req-${Date.now()}`,
-      scope: CONFIG.scope,
-      teamId: CONFIG.teamId,
-      sessionId: `sess-${Date.now()}`,
-      goal: "What are the key benefits of multi-agent AI systems? Provide a brief summary.",
-      input: {},
-    };
+    // Poll for completion with agent output display
+    let isComplete = false;
+    let attempts = 0;
+    const maxAttempts = 30;
 
-    console.log("Starting workflow...");
-    const researchRunId = await orchestrator.startWorkflow(researchRequest);
-    console.log(`Run ID: ${researchRunId}`);
+    while (!isComplete && attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      const run = await workflowStateStore.get(CONFIG.scope, runId);
+      if (!run) continue;
 
-    // Wait a moment for completion
-    await new Promise(resolve => setTimeout(resolve, 5000));
+      // Display agent outputs as they become available
+      if (run.agentOutputs && run.agentOutputs.length > 0) {
+        for (const output of run.agentOutputs) {
+          console.log(`\n[${output.agentName}] ${output.action || "Response"}:`);
+          console.log(`  ${output.content || output.summary || JSON.stringify(output.result, null, 2).substring(0, 500)}`);
+        }
+        // Clear displayed outputs to avoid duplication
+        run.agentOutputs = [];
+      }
 
-    // Check result and send notification
-    const researchRun = await workflowStateStore.get(CONFIG.scope, researchRunId);
-    console.log(`Status: ${researchRun?.status}`);
-    if (researchRun?.lastError) {
-      console.log(`Error: ${JSON.stringify(researchRun.lastError, null, 2)}`);
-    }
-    if (researchRun?.result) {
-      console.log(`Result: ${JSON.stringify(researchRun.result, null, 2)}`);
-    }
+      if (run.status === "completed" || run.status === "failed") {
+        isComplete = true;
+        console.log(`\nStatus: ${run.status}`);
+        
+        if (run.result) {
+          console.log("\nFinal Result:");
+          console.log(JSON.stringify(run.result, null, 2));
+        }
+        
+        if (run.lastError) {
+          console.log(`\nError: ${JSON.stringify(run.lastError, null, 2)}`);
+        }
 
-    // Send Telegram notification for completed workflow
-    const telegramNotifier2 = notifierRegistry.get("telegram");
-    if (telegramNotifier2 && researchRun) {
-      try {
-        await telegramNotifier2.send({
-          id: `notif-${Date.now()}`,
-          scope: CONFIG.scope,
-          channel: "telegram",
-          destination: process.env.TELEGRAM_CHAT_ID ?? "",
-          title: `Workflow Completed: ${researchRequest.goal}`,
-          body: `Status: ${researchRun.status}\n\nResult: ${researchRun.result?.summary ?? "No summary available"}`,
-          runId: researchRunId,
-        });
-        console.log("      Telegram notification sent ✓");
-      } catch (notifError) {
-        console.error("      Telegram notification failed:", notifError instanceof Error ? notifError.message : String(notifError));
-        if (notifError instanceof Error && notifError.stack) {
-          console.error("      Stack:", notifError.stack);
+        // Send Telegram notification
+        const telegramNotifier = notifierRegistry.get("telegram");
+        if (telegramNotifier && run) {
+          try {
+            await telegramNotifier.send({
+              id: `notif-${Date.now()}`,
+              scope: CONFIG.scope,
+              channel: "telegram",
+              destination: process.env.TELEGRAM_CHAT_ID ?? "",
+              title: `Coding Task ${run.status === "completed" ? "Completed" : "Failed"}: Email Validator`,
+              body: `Status: ${run.status}\n\nTeam: ${team.name}\nAgents: ${team.agents.map(a => a.name).join(", ")}`,
+              runId: runId,
+            });
+            console.log("\nTelegram notification sent ✓");
+          } catch (notifError) {
+            console.error("Telegram notification failed:", notifError instanceof Error ? notifError.message : String(notifError));
+          }
         }
       }
-    } else {
-      console.log("      Telegram notifier not available, skipping notification");
+      
+      attempts++;
+    }
+
+    if (!isComplete) {
+      console.log("\nWorkflow still running after max polling attempts...");
     }
 
     console.log();
