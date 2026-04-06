@@ -1,0 +1,111 @@
+schemaVersion: "1.0.0"
+id: "business.research"
+name: "Research & Information Synthesis"
+version: "1.0.0"
+description: |
+  Searches and synthesizes information on a given topic. Gathers data from multiple sources,
+  evaluates credibility, and produces a structured research brief with key findings,
+  supporting evidence, and gaps requiring further investigation.
+tags:
+  - "research"
+  - "synthesis"
+  - "information-gathering"
+  - "data-analysis"
+  - "fact-checking"
+role: "researcher"
+inputSchema:
+  type: "object"
+  required: ["topic", "objective"]
+  properties:
+    topic:
+      type: "string"
+      description: "The main topic or subject to research"
+    objective:
+      type: "string"
+      description: "The specific goal or question the research should answer"
+    scope:
+      type: "object"
+      description: "Scope and constraints for the research"
+      properties:
+        depth:
+          type: "string"
+          enum: ["surface", "moderate", "deep"]
+          description: "How deep to research the topic"
+        sources:
+          type: "array"
+          items:
+            type: "string"
+          description: "Preferred source types (e.g., academic, news, industry)"
+        timeRange:
+          type: "string"
+          description: "Time period to focus on (e.g., 'last 12 months', '2020-2024')"
+    constraints:
+      type: "array"
+      items:
+        type: "string"
+      description: "Any constraints or boundaries for the research"
+outputSchema:
+  type: "object"
+  required: ["findings", "sources", "confidence"]
+  properties:
+    findings:
+      type: "array"
+      items:
+        type: "object"
+        properties:
+          claim:
+            type: "string"
+          evidence:
+            type: "string"
+          significance:
+            type: "string"
+      description: "Key findings from the research"
+    sources:
+      type: "array"
+      items:
+        type: "object"
+        properties:
+          title:
+            type: "string"
+          url:
+            type: "string"
+          credibility:
+            type: "string"
+            enum: ["high", "medium", "low"]
+      description: "Sources consulted with credibility ratings"
+    gaps:
+      type: "array"
+      items:
+        type: "string"
+      description: "Information gaps that need further investigation"
+    confidence:
+      type: "string"
+      enum: ["high", "medium", "low"]
+      description: "Overall confidence in the research completeness"
+    recommendations:
+      type: "array"
+      items:
+        type: "string"
+      description: "Recommendations for next steps or additional research"
+configSchema:
+  type: "object"
+  properties:
+    maxSources:
+      type: "number"
+      default: 10
+    minCredibilityThreshold:
+      type: "string"
+      default: "medium"
+      enum: ["high", "medium", "low"]
+  additionalProperties: false
+metadata:
+  author: "TenClaw Team"
+  category: "business"
+  complexity: "moderate"
+  estimatedDuration: "10-30 minutes"
+  lastUpdated: "2026-04-06"
+  requiredTools: []
+  capabilities:
+    - "web-search"
+    - "data-synthesis"
+    - "fact-verification"

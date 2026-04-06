@@ -131,11 +131,19 @@ class SimpleTextAgentRuntime implements AgentRuntime {
       content: response.outputText,
     };
 
-    // Security auditor should complete the workflow, others route to next agent
-    const isLastAgent = context.agent.id === "security-auditor";
+    // Determine handoff based on team and agent role
+    // Dev team: all route except security-auditor completes
+    // Business team: researcher → writer → editor → complete
+    let handoffDisposition: "route" | "complete" | "retry" = "route";
+    if (context.agent.id === "security-auditor" || context.agent.id === "editor") {
+      handoffDisposition = "complete";
+    }
+    
     const handoff: HandoffDirective = {
-      disposition: isLastAgent ? "complete" : "route",
-      reason: isLastAgent ? "Security audit complete. Workflow finished." : "Task completed, routing to next agent in pipeline.",
+      disposition: handoffDisposition,
+      reason: handoffDisposition === "complete" 
+        ? "Task complete. Workflow finished."
+        : "Task completed, routing to next agent in pipeline.",
     };
 
     return {
@@ -154,6 +162,14 @@ class SimpleTextAgentRuntime implements AgentRuntime {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const CONFIG = {
+  // Team selection (dev or business) - map to full team IDs
+  teamId: (() => {
+    const team = process.env.TEAM ?? "dev";
+    if (team === "dev" || team === "dev-team") return "dev-team";
+    if (team === "business" || team === "business-team") return "business-team";
+    return team;
+  })(),
+  
   // LLM Provider selection
   provider: (process.env.LLM_PROVIDER as "openai" | "anthropic" | "lmstudio" | "ollama") ?? "openai",
 
@@ -179,7 +195,6 @@ const CONFIG = {
   } as TenantScope,
 
   // Team and paths
-  teamId: process.env.TEAM_ID ?? "dev-team",
   paths: {
     teamsRoot: process.env.TEAMS_ROOT ?? "./teams",
     skillsRoot: process.env.SKILLS_ROOT ?? "./skills",
@@ -696,7 +711,7 @@ async function main(): Promise<void> {
     console.log("[4/5] Creating Agent Runtimes and Orchestrator...");
 
     const skillRegistry = new FileSystemSkillRegistry({
-      rootDirectory: CONFIG.paths.skillsRoot + "/dev",
+      rootDirectory: `${CONFIG.paths.skillsRoot}/${CONFIG.teamId === "business-team" ? "business" : "dev"}`,
       parseYaml,
     });
 
@@ -787,43 +802,65 @@ async function main(): Promise<void> {
     };
     console.log("      Orchestrator ready ✓");
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Step 5: Run Coding Task through planner → coder → reviewer pipeline
-    // ─────────────────────────────────────────────────────────────────────────
-    console.log("[5/5] Running Coding Task through Development Delivery Team...");
+    // Determine task based on team
+    const isBusinessTeam = CONFIG.teamId === "business-team";
+    const taskTitle = isBusinessTeam ? "Business Article: Market Trends" : "Email Validator with Jest Tests";
+    const taskGoal = isBusinessTeam 
+      ? "Research and write a comprehensive article on emerging AI trends in business automation for 2026"
+      : "Create a TypeScript function that validates an email address using regex, with unit tests using Jest";
+    const taskInput = isBusinessTeam
+      ? {
+          requirements: [
+            "Research current AI automation trends in business",
+            "Identify 3-5 key emerging technologies",
+            "Analyze business impact and adoption rates",
+            "Write a 1000-word article suitable for business executives",
+            "Include recommendations for business leaders"
+          ],
+          constraints: [
+            "Tone: Professional but accessible",
+            "Target audience: C-suite executives",
+            "Include credible sources",
+            "Focus on practical business applications"
+          ]
+        }
+      : {
+          requirements: [
+            "Function name: isValidEmail(email: string): boolean",
+            "Must validate email format using regex",
+            "Must handle edge cases (empty string, null, undefined)",
+            "Include comprehensive Jest unit tests",
+            "Tests should cover valid emails, invalid emails, and edge cases"
+          ],
+          constraints: [
+            "TypeScript with strict typing",
+            "Jest for testing framework",
+            "No external validation libraries - pure regex"
+          ]
+        };
+
+    console.log("[5/5] Running Task...");
     console.log();
     console.log("─".repeat(60));
-    console.log("Task: Email Validator with Jest Tests");
+    console.log(`Task: ${taskTitle}`);
+    console.log(`Team: ${isBusinessTeam ? "Business Content Team" : "Development Delivery Team"}`);
     console.log("─".repeat(60));
 
-    const codingTask: any = {
+    const task: any = {
       requesterId: `req-${Date.now()}`,
       scope: CONFIG.scope,
       teamId: CONFIG.teamId,
       sessionId: `sess-${Date.now()}`,
-      goal: "Create a TypeScript function that validates an email address using regex, with unit tests using Jest",
-      input: {
-        requirements: [
-          "Function name: isValidEmail(email: string): boolean",
-          "Must validate email format using regex",
-          "Must handle edge cases (empty string, null, undefined)",
-          "Include comprehensive Jest unit tests",
-          "Tests should cover valid emails, invalid emails, and edge cases"
-        ],
-        constraints: [
-          "TypeScript with strict typing",
-          "Jest for testing framework",
-          "No external validation libraries - pure regex"
-        ]
-      },
+      goal: taskGoal,
+      input: taskInput,
     };
 
-    console.log("Starting workflow with Development Delivery Team...");
+    console.log(`Starting workflow with ${team.name}...`);
     console.log(`  Team: ${team.name} (${team.agents.map(a => a.name).join(" → ")})`);
-    console.log(`  Goal: ${codingTask.goal}`);
+    console.log(`  Goal: ${task.goal}`);
     console.log();
 
-    const runId = await orchestrator.startWorkflow(codingTask);
+    const runId = await orchestrator.startWorkflow(task);
     console.log(`Run ID: ${runId}`);
     console.log();
 
@@ -878,7 +915,7 @@ async function main(): Promise<void> {
               scope: CONFIG.scope,
               channel: "telegram",
               destination: process.env.TELEGRAM_CHAT_ID ?? "",
-              title: `Coding Task ${run.status === "completed" ? "Completed" : "Failed"}: Email Validator`,
+              title: `Task ${run.status === "completed" ? "Completed" : "Failed"}: ${taskTitle}`,
               body: `Status: ${run.status}\n\nTeam: ${team.name}\nAgents: ${team.agents.map(a => a.name).join(", ")}`,
               runId: runId,
             });

@@ -1,0 +1,123 @@
+schemaVersion: "1.0.0"
+id: "business.writing"
+name: "Content Writing & Article Creation"
+version: "1.0.0"
+description: |
+  Transforms research into structured articles, reports, or business documents.
+  Creates engaging, well-organized content with clear narrative flow, appropriate
+  tone for the target audience, and proper formatting for the document type.
+tags:
+  - "writing"
+  - "content-creation"
+  - "copywriting"
+  - "article-writing"
+  - "report-writing"
+role: "writer"
+inputSchema:
+  type: "object"
+  required: ["research", "documentType", "targetAudience"]
+  properties:
+    research:
+      type: "object"
+      description: "Research findings from the researcher agent"
+      properties:
+        findings:
+          type: "array"
+          items:
+            type: "object"
+        sources:
+          type: "array"
+          items:
+            type: "object"
+        confidence:
+          type: "string"
+    documentType:
+      type: "string"
+      enum: ["article", "report", "whitepaper", "blog-post", "executive-summary", "press-release"]
+      description: "Type of document to create"
+    targetAudience:
+      type: "string"
+      description: "Description of the intended readers (e.g., 'executives', 'technical staff', 'general public')"
+    tone:
+      type: "string"
+      enum: ["formal", "professional", "conversational", "technical", "persuasive"]
+      description: "Tone of voice for the content"
+    length:
+      type: "string"
+      enum: ["brief", "standard", "comprehensive"]
+      description: "Desired length of the output"
+    keyMessages:
+      type: "array"
+      items:
+        type: "string"
+      description: "Key points that must be included"
+    constraints:
+      type: "array"
+      items:
+        type: "string"
+      description: "Any constraints (word count, sections to include/exclude, etc.)"
+outputSchema:
+  type: "object"
+  required: ["content", "structure", "metadata"]
+  properties:
+    content:
+      type: "string"
+      description: "The full written content"
+    structure:
+      type: "object"
+      properties:
+        title:
+          type: "string"
+        sections:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              heading:
+                type: "string"
+              content:
+                type: "string"
+        wordCount:
+          type: "number"
+    metadata:
+      type: "object"
+      properties:
+        documentType:
+          type: "string"
+        targetAudience:
+          type: "string"
+        tone:
+          type: "string"
+        keyMessagesAddressed:
+          type: "array"
+          items:
+            type: "string"
+    sourcesReferenced:
+      type: "array"
+      items:
+        type: "string"
+      description: "Sources cited in the content"
+configSchema:
+  type: "object"
+  properties:
+    defaultTone:
+      type: "string"
+      default: "professional"
+    minWordCount:
+      type: "number"
+      default: 300
+    maxWordCount:
+      type: "number"
+      default: 5000
+  additionalProperties: false
+metadata:
+  author: "TenClaw Team"
+  category: "business"
+  complexity: "moderate"
+  estimatedDuration: "15-45 minutes"
+  lastUpdated: "2026-04-06"
+  requiredTools: []
+  capabilities:
+    - "content-creation"
+    - "narrative-structure"
+    - "audience-adaptation"

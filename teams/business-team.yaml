@@ -1,0 +1,252 @@
+schemaVersion: "1.0.0"
+id: "business-team"
+name: "Business Content Team"
+description: |
+  A 3-agent pipeline for business content creation: researcher gathers and synthesizes
+  information, writer transforms research into structured articles or reports, and editor
+  reviews for tone, clarity, and structure to deliver polished final content.
+tags:
+  - "business"
+  - "content-creation"
+  - "research"
+  - "writing"
+  - "editing"
+entryAgentId: "researcher"
+routingStrategy: "declarative"
+coordinationMode: "sync"
+queueId: "queue:business-team"
+notifications:
+  - channel: "telegram"
+    onStatuses:
+      - "completed"
+      - "failed"
+      - "cancelled"
+    destinationRef: "TELEGRAM_BUSINESS_CHAT_ID"
+agents:
+  - id: "researcher"
+    name: "Research Specialist"
+    role: "researcher"
+    executionMode: "sync"
+    description: "Searches and synthesizes information on given topics. Produces structured research briefs with findings, sources, and gaps."
+    specializations:
+      - "information-synthesis"
+      - "source-evaluation"
+      - "fact-verification"
+    capabilityTags:
+      - "research"
+      - "analysis"
+      - "data-gathering"
+    bindings:
+      - skillId: "business.research"
+        mode: "primary"
+        required: true
+    systemPromptRef: "prompts/business/researcher.md"
+    modelProfile:
+      provider: "anthropic"
+      model: "claude-sonnet"
+      temperature: 0.3
+      topP: 0.95
+      maxRetries: 1
+      timeoutMs: 45000
+      fallbackModels:
+        - provider: "openai"
+          model: "gpt-4.1"
+    tokenBudget:
+      maxInputTokens: 8000
+      maxOutputTokens: 4000
+      maxTotalTokens: 12000
+      reserveForSystem: 500
+      reserveForHandoff: 300
+      overflowStrategy: "summarize"
+    retryPolicy:
+      maxAttempts: 2
+      baseDelayMs: 500
+      maxDelayMs: 2000
+      backoffMultiplier: 2
+      retryableErrorCodes:
+        - "timeout"
+        - "provider-error"
+    executionLimits:
+      maxRuntimeMs: 60000
+      maxHopsPerRun: 8
+      maxNestedHandOffs: 4
+      maxConsecutiveFailures: 2
+    securityPolicy:
+      allowNetworkAccess: true
+      allowToolExecution: false
+      allowShellExecution: false
+      allowExternalNotifications: false
+      allowSkillLearning: true
+      shellExecutionRequiresApproval: true
+      requiredApprovalKinds: []
+      secretScopes: []
+      secretAccessMode: "deny"
+      maxPromptRiskScore: 0.3
+      allowedRuntimeTargets:
+        - "claude-code"
+      promptInjectionDefenseProfile: "standard"
+  - id: "writer"
+    name: "Content Writer"
+    role: "writer"
+    executionMode: "sync"
+    description: "Transforms research into structured articles, reports, or business documents. Creates engaging content with appropriate tone and format."
+    specializations:
+      - "content-creation"
+      - "narrative-development"
+      - "audience-adaptation"
+    capabilityTags:
+      - "writing"
+      - "copywriting"
+      - "content-strategy"
+    bindings:
+      - skillId: "business.writing"
+        mode: "primary"
+        required: true
+    systemPromptRef: "prompts/business/writer.md"
+    modelProfile:
+      provider: "anthropic"
+      model: "claude-sonnet"
+      temperature: 0.5
+      topP: 0.95
+      maxRetries: 1
+      timeoutMs: 45000
+      fallbackModels:
+        - provider: "openai"
+          model: "gpt-4.1"
+    tokenBudget:
+      maxInputTokens: 10000
+      maxOutputTokens: 4000
+      maxTotalTokens: 14000
+      reserveForSystem: 500
+      reserveForHandoff: 300
+      overflowStrategy: "summarize"
+    retryPolicy:
+      maxAttempts: 2
+      baseDelayMs: 500
+      maxDelayMs: 2000
+      backoffMultiplier: 2
+      retryableErrorCodes:
+        - "timeout"
+        - "provider-error"
+    executionLimits:
+      maxRuntimeMs: 60000
+      maxHopsPerRun: 8
+      maxNestedHandOffs: 4
+      maxConsecutiveFailures: 2
+    securityPolicy:
+      allowNetworkAccess: false
+      allowToolExecution: false
+      allowShellExecution: false
+      allowExternalNotifications: false
+      allowSkillLearning: true
+      shellExecutionRequiresApproval: true
+      requiredApprovalKinds: []
+      secretScopes: []
+      secretAccessMode: "deny"
+      maxPromptRiskScore: 0.3
+      allowedRuntimeTargets:
+        - "claude-code"
+      promptInjectionDefenseProfile: "standard"
+  - id: "editor"
+    name: "Content Editor"
+    role: "editor"
+    executionMode: "sync"
+    description: "Reviews content for tone, clarity, structure, and quality. Performs comprehensive editing and returns polished, publication-ready content."
+    specializations:
+      - "copy-editing"
+      - "structural-editing"
+      - "quality-assurance"
+    capabilityTags:
+      - "editing"
+      - "proofreading"
+      - "content-review"
+    bindings:
+      - skillId: "business.editing"
+        mode: "primary"
+        required: true
+    systemPromptRef: "prompts/business/editor.md"
+    modelProfile:
+      provider: "anthropic"
+      model: "claude-sonnet"
+      temperature: 0.2
+      topP: 0.95
+      maxRetries: 1
+      timeoutMs: 45000
+      fallbackModels:
+        - provider: "openai"
+          model: "gpt-4.1"
+    tokenBudget:
+      maxInputTokens: 12000
+      maxOutputTokens: 4000
+      maxTotalTokens: 16000
+      reserveForSystem: 500
+      reserveForHandoff: 300
+      overflowStrategy: "summarize"
+    retryPolicy:
+      maxAttempts: 2
+      baseDelayMs: 500
+      maxDelayMs: 2000
+      backoffMultiplier: 2
+      retryableErrorCodes:
+        - "timeout"
+        - "provider-error"
+    executionLimits:
+      maxRuntimeMs: 60000
+      maxHopsPerRun: 8
+      maxNestedHandOffs: 4
+      maxConsecutiveFailures: 2
+    securityPolicy:
+      allowNetworkAccess: false
+      allowToolExecution: false
+      allowShellExecution: false
+      allowExternalNotifications: false
+      allowSkillLearning: true
+      shellExecutionRequiresApproval: true
+      requiredApprovalKinds: []
+      secretScopes: []
+      secretAccessMode: "deny"
+      maxPromptRiskScore: 0.3
+      allowedRuntimeTargets:
+        - "claude-code"
+      promptInjectionDefenseProfile: "standard"
+routes:
+  - id: "researcher-to-writer"
+    fromAgentId: "researcher"
+    toAgentId: "writer"
+    priority: 100
+    description: "Pass research findings to writer for content creation."
+    conditions:
+      - field: "handoff.disposition"
+        operator: "equals"
+        value: "route"
+  - id: "writer-to-editor"
+    fromAgentId: "writer"
+    toAgentId: "editor"
+    priority: 100
+    description: "Send draft content to editor for review and polishing."
+    conditions:
+      - field: "handoff.disposition"
+        operator: "equals"
+        value: "route"
+  - id: "editor-back-to-writer"
+    fromAgentId: "editor"
+    toAgentId: "writer"
+    priority: 90
+    description: "Return to writer for revisions if significant changes needed."
+    conditions:
+      - field: "handoff.disposition"
+        operator: "equals"
+        value: "retry"
+  - id: "editor-completed"
+    fromAgentId: "editor"
+    toAgentId: "researcher"
+    priority: 80
+    description: "Content complete and publication-ready."
+    conditions:
+      - field: "handoff.disposition"
+        operator: "equals"
+        value: "complete"
+metadata:
+  domain: "content-creation"
+  owner: "content-team"
+  runtimeTarget: "claude-code"

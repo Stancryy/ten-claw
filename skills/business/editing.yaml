@@ -1,0 +1,161 @@
+schemaVersion: "1.0.0"
+id: "business.editing"
+name: "Content Editing & Quality Review"
+version: "1.0.0"
+description: |
+  Reviews content for tone, clarity, structure, and quality. Performs comprehensive
+  editing including copy editing, structural improvements, and final polish.
+  Returns publication-ready content with detailed change notes.
+tags:
+  - "editing"
+  - "proofreading"
+  - "copy-editing"
+  - "quality-assurance"
+  - "content-review"
+role: "editor"
+inputSchema:
+  type: "object"
+  required: ["content", "documentType", "targetAudience"]
+  properties:
+    content:
+      type: "string"
+      description: "The content to be edited"
+    documentType:
+      type: "string"
+      enum: ["article", "report", "whitepaper", "blog-post", "executive-summary", "press-release"]
+      description: "Type of document"
+    targetAudience:
+      type: "string"
+      description: "Intended readers"
+    tone:
+      type: "string"
+      enum: ["formal", "professional", "conversational", "technical", "persuasive"]
+      description: "Desired tone"
+    keyMessages:
+      type: "array"
+      items:
+        type: "string"
+      description: "Messages that must be preserved"
+    originalResearch:
+      type: "object"
+      description: "Original research findings (for fact-checking)"
+    editLevel:
+      type: "string"
+      enum: ["light", "medium", "heavy"]
+      default: "medium"
+      description: "Level of editing intervention"
+    specificIssues:
+      type: "array"
+      items:
+        type: "string"
+      description: "Known issues to address"
+outputSchema:
+  type: "object"
+  required: ["editedContent", "editReport"]
+  properties:
+    editedContent:
+      type: "string"
+      description: "Final polished content"
+    editReport:
+      type: "object"
+      properties:
+        overallAssessment:
+          type: "string"
+          enum: ["excellent", "good", "acceptable", "needs-work"]
+        changesMade:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              type:
+                type: "string"
+                enum: ["structural", "clarity", "grammar", "style", "fact-check", "formatting"]
+              description:
+                type: "string"
+              location:
+                type: "string"
+        structuralChanges:
+          type: "array"
+          items:
+            type: "string"
+          description: "Changes to organization or flow"
+        clarityImprovements:
+          type: "array"
+          items:
+            type: "string"
+        grammarFixes:
+          type: "number"
+          description: "Count of grammar/spelling corrections"
+        toneAdjustments:
+          type: "array"
+          items:
+            type: "string"
+        factCheckResults:
+          type: "object"
+          properties:
+            claimsVerified:
+              type: "number"
+            claimsFlagged:
+              type: "number"
+            notes:
+              type: "array"
+              items:
+                type: "string"
+        wordCount:
+          type: "object"
+          properties:
+            original:
+              type: "number"
+            final:
+              type: "number"
+        keyMessagesPreserved:
+          type: "array"
+          items:
+            type: "string"
+        remainingConcerns:
+          type: "array"
+          items:
+            type: "string"
+    qualityMetrics:
+      type: "object"
+      properties:
+        readabilityScore:
+          type: "string"
+          description: "Estimated readability level"
+        clarityRating:
+          type: "string"
+          enum: ["excellent", "good", "fair", "poor"]
+        toneConsistency:
+          type: "string"
+          enum: ["excellent", "good", "fair", "poor"]
+        structureRating:
+          type: "string"
+          enum: ["excellent", "good", "fair", "poor"]
+configSchema:
+  type: "object"
+  properties:
+    grammarCheck:
+      type: "boolean"
+      default: true
+    styleCheck:
+      type: "boolean"
+      default: true
+    factCheck:
+      type: "boolean"
+      default: true
+    readabilityTarget:
+      type: "string"
+      default: "professional"
+  additionalProperties: false
+metadata:
+  author: "TenClaw Team"
+  category: "business"
+  complexity: "moderate"
+  estimatedDuration: "10-30 minutes"
+  lastUpdated: "2026-04-06"
+  requiredTools: []
+  capabilities:
+    - "copy-editing"
+    - "structural-editing"
+    - "fact-verification"
+    - "style-consistency"
