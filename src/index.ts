@@ -30,6 +30,8 @@ export * from "./bootstrap";
 export * from "./example-bootstrap";
 export * from "./notifiers";
 export * from "./approval-gateway";
+export * from "./message-bus";
+export * from "./audit-logger";
 
 // TODO:
 // - Add explicit export curation if the package surface becomes too broad for semver stability.

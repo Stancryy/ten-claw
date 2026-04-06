@@ -59,6 +59,10 @@ import {
   createYamlTeamDocumentCodec,
   // Approval gateway
   CliApprovalGateway,
+  // Message bus
+  RedisMessageBus,
+  // Audit logger
+  RedisAuditLogger,
   type FrameworkRuntime,
   type WorkflowRequest,
   type TenantScope,
@@ -626,14 +630,17 @@ async function main(): Promise<void> {
       memoryStore,
       skillRegistry,
       taskRouter: new DeclarativeTaskRouter(),
-      messageBus: {
-        publish: async () => {},
-        publishBatch: async () => {},
-      } as any,
+      messageBus: new RedisMessageBus({
+        client: redisClient,
+        keyPrefix: "tenclaw",
+        maxStreamLength: 10_000,
+      }),
       approvalGateway: new CliApprovalGateway({ timeoutMs: 60_000 }),
-      auditLogger: {
-        record: async () => {},
-      } as any,
+      auditLogger: new RedisAuditLogger({
+        client: redisClient,
+        keyPrefix: "tenclaw",
+        maxStreamLength: 100_000,
+      }),
     });
 
     const runtime: FrameworkRuntime = {
