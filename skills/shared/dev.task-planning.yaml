@@ -1,0 +1,39 @@
+# File: skills/shared/dev.task-planning.yaml
+schemaVersion: "1.0.0"
+id: "dev.task-planning"
+name: "Development Task Planning"
+version: "1.0.0"
+description: "Breaks a software request into phased implementation steps, risks, dependencies, and validation checkpoints."
+tags:
+  - "development"
+  - "planning"
+  - "delivery"
+role: "planner"
+capabilities:
+  - "work-breakdown"
+  - "risk-identification"
+  - "implementation-phasing"
+preferredRuntimeTargets:
+  - "claude-code"
+  - "cursor"
+routingHints:
+  - "Use before coding when the request requires decomposition."
+  - "Escalate to reviewer or security auditor if major compliance risk is detected."
+inputSchema:
+  goal: "string"
+  codebaseContext: "object"
+  constraints: "object"
+outputSchema:
+  plan: "array"
+  risks: "array"
+  acceptanceCriteria: "array"
+promptTemplateRef: "prompts/skills/dev/task-planning.md"
+securityNotes:
+  - "Must not request shell execution without explicit approval."
+metadata:
+  domain: "software-delivery"
+  qualityTier: "production-baseline"
+
+# TODO:
+# - Replace schematic string/object placeholders with validated JSON Schema documents.
+# - Add examples tuned for monorepos, greenfield services, and incident-response tasks.

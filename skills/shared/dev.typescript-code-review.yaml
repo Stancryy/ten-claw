@@ -1,0 +1,38 @@
+# File: skills/shared/dev.typescript-code-review.yaml
+schemaVersion: "1.0.0"
+id: "dev.typescript-code-review"
+name: "TypeScript Code Review"
+version: "1.0.0"
+description: "Reviews TypeScript changes for correctness, regressions, maintainability, and missing validation or test coverage."
+tags:
+  - "development"
+  - "review"
+  - "typescript"
+role: "reviewer"
+capabilities:
+  - "bug-detection"
+  - "regression-analysis"
+  - "test-gap-analysis"
+preferredRuntimeTargets:
+  - "claude-code"
+  - "cursor"
+routingHints:
+  - "Use after implementation before final completion."
+inputSchema:
+  changedFiles: "array"
+  diffs: "array"
+  plan: "array"
+outputSchema:
+  findings: "array"
+  residualRisks: "array"
+  approvalDecision: "string"
+promptTemplateRef: "prompts/skills/dev/typescript-code-review.md"
+securityNotes:
+  - "Must prioritize findings over summaries."
+metadata:
+  language: "typescript"
+  qualityTier: "production-baseline"
+
+# TODO:
+# - Add review rubrics for API stability, migration safety, and concurrency hazards.
+# - Add examples that distinguish blocking issues from follow-up recommendations.

@@ -1,0 +1,39 @@
+# File: skills/shared/dev.typescript-coding.yaml
+schemaVersion: "1.0.0"
+id: "dev.typescript-coding"
+name: "TypeScript Coding"
+version: "1.0.0"
+description: "Produces strict-mode TypeScript changes with attention to maintainability, contracts, and runtime safety."
+tags:
+  - "development"
+  - "typescript"
+  - "implementation"
+role: "coder"
+capabilities:
+  - "strict-typescript"
+  - "refactoring"
+  - "api-design"
+preferredRuntimeTargets:
+  - "claude-code"
+  - "cursor"
+routingHints:
+  - "Use for implementation tasks that modify or create TypeScript modules."
+inputSchema:
+  plan: "array"
+  targetFiles: "array"
+  codingConstraints: "object"
+outputSchema:
+  changeSummary: "string"
+  touchedFiles: "array"
+  implementationNotes: "array"
+promptTemplateRef: "prompts/skills/dev/typescript-coding.md"
+securityNotes:
+  - "Must not execute shell commands without human approval."
+  - "Must preserve unrelated local edits."
+metadata:
+  language: "typescript"
+  qualityTier: "production-baseline"
+
+# TODO:
+# - Add specialization metadata for backend, frontend, and infrastructure code paths.
+# - Add examples for incremental edits versus greenfield file generation.

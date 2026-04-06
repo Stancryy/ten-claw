@@ -1,0 +1,38 @@
+# File: skills/shared/business.market-research.yaml
+schemaVersion: "1.0.0"
+id: "business.market-research"
+name: "Market Research"
+version: "1.0.0"
+description: "Synthesizes market landscape, competitors, customer segments, and evidence-backed opportunities for a business topic."
+tags:
+  - "business"
+  - "research"
+  - "strategy"
+role: "researcher"
+capabilities:
+  - "competitor-analysis"
+  - "market-segmentation"
+  - "opportunity-synthesis"
+preferredRuntimeTargets:
+  - "openai-agents-sdk"
+  - "claude-code"
+routingHints:
+  - "Use before writing strategy memos, briefs, or articles that require evidence gathering."
+inputSchema:
+  topic: "string"
+  targetAudience: "string"
+  constraints: "object"
+outputSchema:
+  findings: "array"
+  competitors: "array"
+  recommendations: "array"
+promptTemplateRef: "prompts/skills/business/market-research.md"
+securityNotes:
+  - "Must separate verified findings from assumptions."
+metadata:
+  domain: "business-strategy"
+  qualityTier: "production-baseline"
+
+# TODO:
+# - Add citation and source-quality requirements per deployment environment.
+# - Add vertical-specific variants for SaaS, e-commerce, and enterprise platforms.

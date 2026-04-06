@@ -1,0 +1,50 @@
+# Docker Compose configuration for TenClaw local development
+# Provides Redis (KV store + task queue) and ChromaDB (vector database)
+#
+# Usage:
+#   docker compose up -d          # Start all services
+#   docker compose down           # Stop all services
+#   docker compose down -v        # Stop and remove volumes (WARNING: data loss)
+
+services:
+  # Redis - Key-value store for session state and task queue
+  redis:
+    image: redis:7-alpine
+    container_name: tenclaw-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --save 60 1
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # ChromaDB - Vector database for semantic memory
+  chroma:
+    image: chromadb/chroma:latest
+    container_name: tenclaw-chroma
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - PERSIST_DIRECTORY=/chroma/chroma
+      - CHROMA_SERVER_HOST=0.0.0.0
+      - CHROMA_SERVER_PORT=8000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+    driver: local
+  chroma_data:
+    driver: local

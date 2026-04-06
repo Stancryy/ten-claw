@@ -1,0 +1,38 @@
+# File: skills/shared/dev.security-audit.yaml
+schemaVersion: "1.0.0"
+id: "dev.security-audit"
+name: "Security Audit"
+version: "1.0.0"
+description: "Audits code and workflows for prompt-injection exposure, secret leakage, privilege escalation, and insecure integrations."
+tags:
+  - "development"
+  - "security"
+  - "audit"
+role: "security-auditor"
+capabilities:
+  - "prompt-injection-review"
+  - "secret-handling-review"
+  - "privilege-escalation-analysis"
+preferredRuntimeTargets:
+  - "claude-code"
+  - "openai-agents-sdk"
+routingHints:
+  - "Use when code touches external integrations, secrets, or human-approval boundaries."
+inputSchema:
+  changedFiles: "array"
+  integrations: "array"
+  securityPolicy: "object"
+outputSchema:
+  findings: "array"
+  riskLevel: "string"
+  mitigationSteps: "array"
+promptTemplateRef: "prompts/skills/dev/security-audit.md"
+securityNotes:
+  - "Must flag any path that enables shell execution without explicit approval."
+metadata:
+  domain: "security"
+  qualityTier: "production-baseline"
+
+# TODO:
+# - Add mapping to internal control IDs or external frameworks such as SOC 2 or ISO 27001.
+# - Add examples for secrets rotation, webhook verification, and approval bypass risks.

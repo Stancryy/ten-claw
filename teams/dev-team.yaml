@@ -1,0 +1,257 @@
+# File: teams/dev-team.yaml
+schemaVersion: "1.0.0"
+id: "dev-team"
+name: "Development Delivery Team"
+description: "Three-agent software pipeline for planning, coding, and review."
+entryAgentId: "planner"
+runtimeTarget: "claude-code"
+routingStrategy: "hybrid"
+workspaceTags:
+  - "engineering"
+  - "typescript"
+  - "delivery"
+defaultTokenBudget:
+  maxInputTokens: 12000
+  maxOutputTokens: 3000
+  maxTotalTokens: 14000
+  reserveForSystem: 500
+  reserveForHandoff: 300
+  overflowStrategy: "summarize"
+notifications:
+  - channel: "telegram"
+    destinationRef: "TELEGRAM_DEV_CHAT_ID"
+    onStatuses:
+      - "completed"
+      - "failed"
+agents:
+  - id: "planner"
+    name: "Task Planner"
+    role: "planner"
+    executionMode: "sync"
+    description: "Breaks the request into executable implementation steps for downstream agents."
+    specializations:
+      - "implementation-planning"
+      - "requirement-analysis"
+    capabilityTags:
+      - "planning"
+      - "delivery"
+    bindings:
+      - skillId: "dev.task-planning"
+        mode: "primary"
+        required: true
+      - skillId: "dev.requirement-analysis"
+        mode: "supporting"
+        required: false
+    systemPromptRef: "prompts/dev/planner.md"
+    modelProfile:
+      provider: "anthropic"
+      model: "claude-sonnet"
+      temperature: 0.2
+      topP: 0.95
+      maxRetries: 1
+      timeoutMs: 30000
+      fallbackModels:
+        - provider: "openai"
+          model: "gpt-4.1"
+    tokenBudget:
+      maxInputTokens: 10000
+      maxOutputTokens: 2500
+      maxTotalTokens: 12000
+      reserveForSystem: 500
+      reserveForHandoff: 300
+      overflowStrategy: "summarize"
+    retryPolicy:
+      maxAttempts: 2
+      baseDelayMs: 500
+      maxDelayMs: 2000
+      backoffMultiplier: 2
+      retryableErrorCodes:
+        - "timeout"
+        - "provider-error"
+    executionLimits:
+      maxRuntimeMs: 45000
+      maxHopsPerRun: 12
+      maxNestedHandOffs: 6
+      maxConsecutiveFailures: 2
+    securityPolicy:
+      allowNetworkAccess: false
+      allowToolExecution: false
+      allowShellExecution: false
+      allowExternalNotifications: false
+      allowSkillLearning: true
+      shellExecutionRequiresApproval: true
+      requiredApprovalKinds:
+        - "tool-execution"
+      secretScopes: []
+      secretAccessMode: "deny"
+      maxPromptRiskScore: 0.4
+      allowedRuntimeTargets:
+        - "claude-code"
+      promptInjectionDefenseProfile: "strict-dev"
+  - id: "coder"
+    name: "Implementation Coder"
+    role: "coder"
+    executionMode: "sync"
+    description: "Generates and updates code based on the approved implementation plan."
+    specializations:
+      - "strict-typescript"
+      - "refactoring"
+    capabilityTags:
+      - "implementation"
+      - "code-generation"
+    bindings:
+      - skillId: "dev.typescript-coding"
+        mode: "primary"
+        required: true
+      - skillId: "dev.test-generation"
+        mode: "supporting"
+        required: false
+    systemPromptRef: "prompts/dev/coder.md"
+    modelProfile:
+      provider: "openai"
+      model: "gpt-4.1"
+      temperature: 0.1
+      topP: 1
+      maxRetries: 1
+      timeoutMs: 45000
+      fallbackModels:
+        - provider: "groq"
+          model: "llama-3.3-70b"
+    tokenBudget:
+      maxInputTokens: 14000
+      maxOutputTokens: 4000
+      maxTotalTokens: 16000
+      reserveForSystem: 500
+      reserveForHandoff: 300
+      overflowStrategy: "truncate"
+    retryPolicy:
+      maxAttempts: 2
+      baseDelayMs: 500
+      maxDelayMs: 2000
+      backoffMultiplier: 2
+      retryableErrorCodes:
+        - "timeout"
+        - "provider-error"
+        - "malformed-output"
+    executionLimits:
+      maxRuntimeMs: 60000
+      maxHopsPerRun: 12
+      maxNestedHandOffs: 6
+      maxConsecutiveFailures: 2
+    securityPolicy:
+      allowNetworkAccess: false
+      allowToolExecution: false
+      allowShellExecution: false
+      allowExternalNotifications: false
+      allowSkillLearning: true
+      shellExecutionRequiresApproval: true
+      requiredApprovalKinds:
+        - "tool-execution"
+      secretScopes: []
+      secretAccessMode: "deny"
+      maxPromptRiskScore: 0.35
+      allowedRuntimeTargets:
+        - "claude-code"
+      promptInjectionDefenseProfile: "strict-dev"
+  - id: "reviewer"
+    name: "Code Reviewer"
+    role: "reviewer"
+    executionMode: "sync"
+    description: "Reviews code for correctness, regressions, and policy compliance."
+    specializations:
+      - "bug-detection"
+      - "security-review"
+    capabilityTags:
+      - "review"
+      - "quality"
+    bindings:
+      - skillId: "dev.typescript-code-review"
+        mode: "primary"
+        required: true
+      - skillId: "dev.security-audit"
+        mode: "validation"
+        required: false
+    systemPromptRef: "prompts/dev/reviewer.md"
+    modelProfile:
+      provider: "anthropic"
+      model: "claude-sonnet"
+      temperature: 0.1
+      topP: 0.95
+      maxRetries: 1
+      timeoutMs: 30000
+      fallbackModels:
+        - provider: "google-gemini"
+          model: "gemini-2.5-pro"
+    tokenBudget:
+      maxInputTokens: 12000
+      maxOutputTokens: 2500
+      maxTotalTokens: 14000
+      reserveForSystem: 500
+      reserveForHandoff: 300
+      overflowStrategy: "summarize"
+    retryPolicy:
+      maxAttempts: 2
+      baseDelayMs: 500
+      maxDelayMs: 2000
+      backoffMultiplier: 2
+      retryableErrorCodes:
+        - "timeout"
+        - "provider-error"
+    executionLimits:
+      maxRuntimeMs: 45000
+      maxHopsPerRun: 12
+      maxNestedHandOffs: 6
+      maxConsecutiveFailures: 2
+    securityPolicy:
+      allowNetworkAccess: false
+      allowToolExecution: false
+      allowShellExecution: false
+      allowExternalNotifications: false
+      allowSkillLearning: true
+      shellExecutionRequiresApproval: true
+      requiredApprovalKinds:
+        - "tool-execution"
+      secretScopes: []
+      secretAccessMode: "deny"
+      maxPromptRiskScore: 0.3
+      allowedRuntimeTargets:
+        - "claude-code"
+      promptInjectionDefenseProfile: "strict-dev"
+routes:
+  - id: "planner-to-coder"
+    fromAgentId: "planner"
+    toAgentId: "coder"
+    priority: 100
+    description: "Move planned implementation work into the coding phase."
+    conditions:
+      - field: "handoff.disposition"
+        operator: "equals"
+        value: "route"
+  - id: "coder-to-reviewer"
+    fromAgentId: "coder"
+    toAgentId: "reviewer"
+    priority: 100
+    description: "Submit generated code for review."
+    conditions:
+      - field: "handoff.disposition"
+        operator: "equals"
+        value: "route"
+  - id: "reviewer-back-to-coder"
+    fromAgentId: "reviewer"
+    toAgentId: "coder"
+    priority: 90
+    description: "Send the task back to coding when review requests revisions."
+    conditions:
+      - field: "handoff.disposition"
+        operator: "equals"
+        value: "retry"
+metadata:
+  domain: "software-delivery"
+  owner: "engineering"
+  runtimeTarget: "claude-code"
+
+# TODO:
+# - Replace placeholder `systemPromptRef` paths with real prompt assets.
+# - Add concrete skill documents under a Git-backed skills library.
+# - Replace example model identifiers with the exact provider model ids used in your deployment.
+# - Replace `destinationRef` with a resolved chat/channel identifier in your environment.

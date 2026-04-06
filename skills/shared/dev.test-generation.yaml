@@ -1,0 +1,38 @@
+# File: skills/shared/dev.test-generation.yaml
+schemaVersion: "1.0.0"
+id: "dev.test-generation"
+name: "Test Generation"
+version: "1.0.0"
+description: "Designs and generates focused automated tests for changed code paths, edge cases, and regression-prone behavior."
+tags:
+  - "development"
+  - "testing"
+  - "quality"
+role: "tester"
+capabilities:
+  - "unit-tests"
+  - "integration-tests"
+  - "edge-case-analysis"
+preferredRuntimeTargets:
+  - "claude-code"
+  - "cursor"
+routingHints:
+  - "Use after code changes when regression risk or missing coverage is material."
+inputSchema:
+  changedFiles: "array"
+  behaviors: "array"
+  existingCoverage: "object"
+outputSchema:
+  proposedTests: "array"
+  coverageGaps: "array"
+  rationale: "array"
+promptTemplateRef: "prompts/skills/dev/test-generation.md"
+securityNotes:
+  - "Prefer focused tests over broad low-value snapshots."
+metadata:
+  domain: "software-delivery"
+  qualityTier: "production-baseline"
+
+# TODO:
+# - Add framework-specific variants for Jest, Vitest, Playwright, and JUnit.
+# - Add heuristics for when manual verification is preferable to new automated tests.

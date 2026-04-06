@@ -1,0 +1,38 @@
+# File: skills/shared/business.article-writing.yaml
+schemaVersion: "1.0.0"
+id: "business.article-writing"
+name: "Article Writing"
+version: "1.0.0"
+description: "Turns research and audience goals into structured articles with a clear thesis, outline, and publication-ready draft."
+tags:
+  - "business"
+  - "writing"
+  - "content"
+role: "writer"
+capabilities:
+  - "outline-creation"
+  - "long-form-writing"
+  - "audience-tailoring"
+preferredRuntimeTargets:
+  - "claude-code"
+  - "openai-agents-sdk"
+routingHints:
+  - "Use after market research or subject-matter analysis to produce a polished narrative deliverable."
+inputSchema:
+  brief: "string"
+  audience: "string"
+  sourceFindings: "array"
+outputSchema:
+  outline: "array"
+  draft: "string"
+  editorialNotes: "array"
+promptTemplateRef: "prompts/skills/business/article-writing.md"
+securityNotes:
+  - "Must not present unsupported claims as factual."
+metadata:
+  domain: "content-operations"
+  qualityTier: "production-baseline"
+
+# TODO:
+# - Add style-profile metadata for executive briefs, blog posts, and whitepapers.
+# - Add optional SEO guidance fields for title, keywords, and meta description.

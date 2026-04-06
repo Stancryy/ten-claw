@@ -1,0 +1,38 @@
+# File: skills/shared/dev.requirement-analysis.yaml
+schemaVersion: "1.0.0"
+id: "dev.requirement-analysis"
+name: "Requirement Analysis"
+version: "1.0.0"
+description: "Extracts functional requirements, non-functional constraints, ambiguities, and hidden assumptions from a development request."
+tags:
+  - "development"
+  - "analysis"
+  - "requirements"
+role: "planner"
+capabilities:
+  - "ambiguity-detection"
+  - "constraint-extraction"
+  - "acceptance-criteria"
+preferredRuntimeTargets:
+  - "claude-code"
+  - "openai-agents-sdk"
+routingHints:
+  - "Use when requests are underspecified or carry hidden assumptions."
+inputSchema:
+  goal: "string"
+  requestInput: "object"
+  constraints: "object"
+outputSchema:
+  requirements: "array"
+  ambiguities: "array"
+  missingInformation: "array"
+promptTemplateRef: "prompts/skills/dev/requirement-analysis.md"
+securityNotes:
+  - "Should not fabricate missing business rules."
+metadata:
+  domain: "software-delivery"
+  qualityTier: "production-baseline"
+
+# TODO:
+# - Add stricter output validation for missing-information severity scoring.
+# - Add examples for API design, UI changes, and infrastructure tasks.
