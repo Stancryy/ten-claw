@@ -57,6 +57,8 @@ import {
   FileSystemTeamRepository,
   JsonTeamDocumentCodec,
   createYamlTeamDocumentCodec,
+  // Approval gateway
+  CliApprovalGateway,
   type FrameworkRuntime,
   type WorkflowRequest,
   type TenantScope,
@@ -628,9 +630,7 @@ async function main(): Promise<void> {
         publish: async () => {},
         publishBatch: async () => {},
       } as any,
-      approvalGateway: {
-        requestApproval: async () => ({ approved: true, approverId: "auto", decidedAt: new Date().toISOString() }),
-      } as any,
+      approvalGateway: new CliApprovalGateway({ timeoutMs: 60_000 }),
       auditLogger: {
         record: async () => {},
       } as any,

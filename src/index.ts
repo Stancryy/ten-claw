@@ -29,6 +29,7 @@ export * from "./runtime-platforms";
 export * from "./bootstrap";
 export * from "./example-bootstrap";
 export * from "./notifiers";
+export * from "./approval-gateway";
 
 // TODO:
 // - Add explicit export curation if the package surface becomes too broad for semver stability.
