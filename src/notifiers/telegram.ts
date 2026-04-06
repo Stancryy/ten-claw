@@ -134,24 +134,68 @@ export class TelegramNotifier implements Notifier {
   }
 
   /**
-   * Formats a notification into a Telegram-friendly MarkdownV2 text payload.
+   * Escapes special characters for Telegram MarkdownV2 parse mode.
+   * Characters that must be escaped: . - ( ) ! # + = | { } [ ] ~
+   */
+  private escapeMarkdownV2(text: string): string {
+    if (this.parseMode !== "MarkdownV2") {
+      return text;
+    }
+    // Escape each special character individually
+    // Order matters - escape backslash first, then others
+    const escaped = text
+      .replace(/\\/g, "\\\\")  // Escape backslashes first
+      .replace(/_/g, "\\_")
+      .replace(/\*/g, "\\*")
+      .replace(/\[/g, "\\[")
+      .replace(/\]/g, "\\]")
+      .replace(/\(/g, "\\(")
+      .replace(/\)/g, "\\)")
+      .replace(/~/g, "\\~")
+      .replace(/`/g, "\\`")
+      .replace(/>/g, "\\>")
+      .replace(/#/g, "\\#")
+      .replace(/\+/g, "\\+")
+      .replace(/-/g, "\\-")   // Hyphen
+      .replace(/=/g, "\\=")
+      .replace(/\|/g, "\\|")
+      .replace(/\{/g, "\\{")
+      .replace(/\}/g, "\\}")
+      .replace(/\./g, "\\.")
+      .replace(/!/g, "\\!");
+    return escaped;
+  }
+
+  /**
+   * Formats a notification into a Telegram-friendly HTML text payload.
    */
   private formatMessage(request: NotificationRequest): string {
     const lines: string[] = [];
 
-    // Bold title using MarkdownV2
-    lines.push(`*${request.title}*`);
+    // Bold title using HTML
+    lines.push(`<b>${this.escapeHtml(request.title)}</b>`);
     lines.push("");
 
     // Body text
-    lines.push(request.body);
+    lines.push(this.escapeHtml(request.body));
 
     // Optional runId footer
     if (request.runId) {
       lines.push("");
-      lines.push(`Run ID: ${request.runId}`);
+      lines.push(`Run ID: ${this.escapeHtml(request.runId)}`);
     }
 
     return lines.join("\n");
+  }
+
+  /**
+   * Escapes HTML special characters.
+   */
+  private escapeHtml(text: string): string {
+    return text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
   }
 }

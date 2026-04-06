@@ -764,6 +764,7 @@ async function main(): Promise<void> {
         new TelegramNotifier({
           botToken: telegramBotToken,
           defaultChatId: telegramChatId,
+          parseMode: "HTML",
         })
       );
       console.log("      Telegram notifier registered ✓");
@@ -804,24 +805,25 @@ async function main(): Promise<void> {
 
     // Determine task based on team
     const isBusinessTeam = CONFIG.teamId === "business-team";
-    const taskTitle = isBusinessTeam ? "Business Article: Market Trends" : "Email Validator with Jest Tests";
+    const taskTitle = isBusinessTeam ? "Multi-Agent AI Frameworks Report" : "Email Validator with Jest Tests";
     const taskGoal = isBusinessTeam 
-      ? "Research and write a comprehensive article on emerging AI trends in business automation for 2026"
+      ? "Research and write a structured report on the current state of multi-agent AI frameworks in 2025, covering key players, technical approaches, and adoption trends"
       : "Create a TypeScript function that validates an email address using regex, with unit tests using Jest";
     const taskInput = isBusinessTeam
       ? {
           requirements: [
-            "Research current AI automation trends in business",
-            "Identify 3-5 key emerging technologies",
-            "Analyze business impact and adoption rates",
-            "Write a 1000-word article suitable for business executives",
-            "Include recommendations for business leaders"
+            "Research and identify key multi-agent AI frameworks (e.g., LangGraph, CrewAI, AutoGen, TenClaw-style orchestrators)",
+            "Analyze technical approaches: workflow routing, agent communication, state management",
+            "Cover adoption trends across enterprise, startups, and open source",
+            "Compare strengths and limitations of different approaches",
+            "Write a structured 1500-word report with executive summary"
           ],
           constraints: [
-            "Tone: Professional but accessible",
-            "Target audience: C-suite executives",
-            "Include credible sources",
-            "Focus on practical business applications"
+            "Tone: Professional and analytical",
+            "Target audience: Technical decision makers and CTOs",
+            "Include framework comparison matrix",
+            "Cite credible sources (GitHub repos, technical blogs, research papers)",
+            "Document type: structured report with clear sections"
           ]
         }
       : {
