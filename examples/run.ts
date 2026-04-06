@@ -63,6 +63,8 @@ import {
   RedisMessageBus,
   // Audit logger
   RedisAuditLogger,
+  // Notifier
+  TelegramNotifier,
   type FrameworkRuntime,
   type WorkflowRequest,
   type TenantScope,
@@ -619,6 +621,21 @@ async function main(): Promise<void> {
     const agentRegistry = new StaticAgentRegistry(agentRuntimes);
     const notifierRegistry = new NotifierRegistry();
 
+    // Conditionally register Telegram notifier if credentials are available
+    const telegramBotToken = process.env.TELEGRAM_BOT_TOKEN;
+    const telegramChatId = process.env.TELEGRAM_CHAT_ID;
+    if (telegramBotToken && telegramChatId) {
+      notifierRegistry.register(
+        new TelegramNotifier({
+          botToken: telegramBotToken,
+          defaultChatId: telegramChatId,
+        })
+      );
+      console.log("      Telegram notifier registered ✓");
+    } else {
+      console.log("      Telegram notifier skipped (TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not set) ⚠");
+    }
+
     // Create workflow state store wrapper around Redis backend
     const workflowStateStore = new WorkflowBackendStateStoreAdapter(workflowBackend);
 
@@ -677,7 +694,7 @@ async function main(): Promise<void> {
     // Wait a moment for completion (in real scenario, this would poll or use callbacks)
     await new Promise(resolve => setTimeout(resolve, 3000));
 
-    // Check result
+    // Check result and send notification
     const helloRun = await workflowStateStore.get(CONFIG.scope, helloRunId);
     console.log(`Status: ${helloRun?.status}`);
     if (helloRun?.lastError) {
@@ -685,6 +702,30 @@ async function main(): Promise<void> {
     }
     if (helloRun?.result) {
       console.log(`Result: ${JSON.stringify(helloRun.result, null, 2)}`);
+    }
+
+    // Send Telegram notification for completed workflow
+    const telegramNotifier = notifierRegistry.get("telegram");
+    if (telegramNotifier && helloRun) {
+      try {
+        await telegramNotifier.send({
+          id: `notif-${Date.now()}`,
+          scope: CONFIG.scope,
+          channel: "telegram",
+          destination: process.env.TELEGRAM_CHAT_ID ?? "",
+          title: `Workflow Completed: ${helloRequest.goal}`,
+          body: `Status: ${helloRun.status}\n\nResult: ${helloRun.result?.summary ?? "No summary available"}`,
+          runId: helloRunId,
+        });
+        console.log("      Telegram notification sent ✓");
+      } catch (notifError) {
+        console.error("      Telegram notification failed:", notifError instanceof Error ? notifError.message : String(notifError));
+        if (notifError instanceof Error && notifError.stack) {
+          console.error("      Stack:", notifError.stack);
+        }
+      }
+    } else {
+      console.log("      Telegram notifier not available, skipping notification");
     }
 
     console.log();
@@ -710,7 +751,7 @@ async function main(): Promise<void> {
     // Wait a moment for completion
     await new Promise(resolve => setTimeout(resolve, 5000));
 
-    // Check result
+    // Check result and send notification
     const researchRun = await workflowStateStore.get(CONFIG.scope, researchRunId);
     console.log(`Status: ${researchRun?.status}`);
     if (researchRun?.lastError) {
@@ -718,6 +759,30 @@ async function main(): Promise<void> {
     }
     if (researchRun?.result) {
       console.log(`Result: ${JSON.stringify(researchRun.result, null, 2)}`);
+    }
+
+    // Send Telegram notification for completed workflow
+    const telegramNotifier2 = notifierRegistry.get("telegram");
+    if (telegramNotifier2 && researchRun) {
+      try {
+        await telegramNotifier2.send({
+          id: `notif-${Date.now()}`,
+          scope: CONFIG.scope,
+          channel: "telegram",
+          destination: process.env.TELEGRAM_CHAT_ID ?? "",
+          title: `Workflow Completed: ${researchRequest.goal}`,
+          body: `Status: ${researchRun.status}\n\nResult: ${researchRun.result?.summary ?? "No summary available"}`,
+          runId: researchRunId,
+        });
+        console.log("      Telegram notification sent ✓");
+      } catch (notifError) {
+        console.error("      Telegram notification failed:", notifError instanceof Error ? notifError.message : String(notifError));
+        if (notifError instanceof Error && notifError.stack) {
+          console.error("      Stack:", notifError.stack);
+        }
+      }
+    } else {
+      console.log("      Telegram notifier not available, skipping notification");
     }
 
     console.log();

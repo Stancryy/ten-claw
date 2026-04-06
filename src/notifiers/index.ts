@@ -98,43 +98,67 @@ export class PassthroughDestinationResolver implements DestinationResolver {
 
 /** Telegram notifier implementation backed by the Telegram Bot API. */
 export class TelegramNotifier implements Notifier {
-  /** Fixed channel identifier for this notifier implementation. */
   readonly channel: NotificationChannel = "telegram";
 
-  /** Creates a notifier with injected secret access and HTTP transport. */
-  constructor(
-    private readonly secrets: SecretProvider,
-    private readonly httpClient: HttpClient = new FetchHttpClient(),
-    private readonly destinationResolver: DestinationResolver = new PassthroughDestinationResolver(),
-    private readonly config: TelegramNotifierConfig,
-  ) {}
+  private readonly botToken: string;
+  private readonly defaultChatId: string;
+  private readonly parseMode: "Markdown" | "MarkdownV2" | "HTML";
+  private readonly disableWebPagePreview: boolean;
 
-  /** Sends a formatted workflow notification to Telegram. */
+  constructor(config: {
+    botToken: string;
+    defaultChatId: string;
+    parseMode?: "Markdown" | "MarkdownV2" | "HTML";
+    disableWebPagePreview?: boolean;
+  }) {
+    this.botToken = config.botToken;
+    this.defaultChatId = config.defaultChatId;
+    this.parseMode = config.parseMode ?? "MarkdownV2";
+    this.disableWebPagePreview = config.disableWebPagePreview ?? true;
+  }
+
   async send(request: NotificationRequest): Promise<void> {
-    const botToken = await this.secrets.getSecret(request.scope, this.config.botTokenSecretKey);
-    const chatId = await this.destinationResolver.resolve(request.scope, request.destination);
-    const endpoint = `${this.config.apiBaseUrl ?? "https://api.telegram.org"}/bot${botToken}/sendMessage`;
-    const response = await this.httpClient.postJson<TelegramApiResponse>(endpoint, {
-      chat_id: chatId,
-      text: formatTelegramMessage(request),
-      parse_mode: this.resolveParseMode(request),
-      disable_web_page_preview: this.config.disableWebPagePreview ?? true,
-    });
+    const chatId = request.destination ?? this.defaultChatId;
+    const endpoint = `https://api.telegram.org/bot${this.botToken}/sendMessage`;
 
-    // REQUIRES: valid Telegram bot credentials and a reachable Telegram Bot API endpoint.
-    if (!response.ok) {
-      throw new Error(response.description ?? "Telegram notification delivery failed.");
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: this.formatMessage(request),
+          parse_mode: this.parseMode,
+          disable_web_page_preview: this.disableWebPagePreview,
+        }),
+      });
+
+      if (!response.ok) {
+        const status = response.status;
+        const body = await response.text().catch(() => "");
+        console.error(`[TelegramNotifier] HTTP ${status} error: ${body}`);
+        throw new Error(`Telegram notification failed: HTTP ${status}`);
+      }
+
+      const result = (await response.json()) as { ok: boolean; description?: string };
+      if (!result.ok) {
+        console.error(`[TelegramNotifier] API error: ${result.description}`);
+        throw new Error(`Telegram notification failed: ${result.description}`);
+      }
+    } catch (error) {
+      if (error instanceof TypeError && error.message.includes("fetch")) {
+        throw new Error(`Network error sending to Telegram (${endpoint}): ${error.message}`);
+      }
+      throw error;
     }
   }
 
-  private resolveParseMode(
-    request: NotificationRequest,
-  ): TelegramNotifierConfig["defaultParseMode"] | undefined {
-    const parseMode = request.metadata?.parseMode;
-    if (parseMode === "Markdown" || parseMode === "MarkdownV2" || parseMode === "HTML") {
-      return parseMode;
+  private formatMessage(request: NotificationRequest): string {
+    const lines = [`*${request.title}*`, "", request.body];
+    if (request.runId) {
+      lines.push("", `Run ID: ${request.runId}`);
     }
-    return this.config.defaultParseMode;
+    return lines.join("\n");
   }
 }
 

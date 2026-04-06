@@ -197,12 +197,11 @@ function buildConfiguredNotifiers(
 
   if (config?.telegram) {
     notifiers.push(
-      new TelegramNotifier(
-        secretProvider,
-        undefined,
-        undefined,
-        config.telegram,
-      ),
+      new TelegramNotifier({
+        botToken: "", // Will be resolved at send time via destinationResolver
+        defaultChatId: "",
+        ...config.telegram,
+      }),
     );
   }
   if (config?.discord) {
