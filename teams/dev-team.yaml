@@ -2,7 +2,7 @@
 schemaVersion: "1.0.0"
 id: "dev-team"
 name: "Development Delivery Team"
-description: "Three-agent software pipeline for planning, coding, and review."
+description: "Five-agent software pipeline for planning, coding, review, testing, and security audit."
 entryAgentId: "planner"
 runtimeTarget: "claude-code"
 routingStrategy: "hybrid"
@@ -208,6 +208,132 @@ agents:
       allowedRuntimeTargets:
         - "claude-code"
       promptInjectionDefenseProfile: "strict-dev"
+  - id: "tester"
+    name: "Quality Assurance Tester"
+    role: "tester"
+    executionMode: "sync"
+    description: "Generates comprehensive Jest test suites and coverage reports for code produced by the implementation coder."
+    specializations:
+      - "jest-testing"
+      - "test-coverage"
+      - "edge-case-identification"
+    capabilityTags:
+      - "testing"
+      - "quality-assurance"
+      - "test-generation"
+    bindings:
+      - skillId: "dev.testing"
+        mode: "primary"
+        required: true
+    systemPromptRef: "prompts/dev/tester.md"
+    modelProfile:
+      provider: "anthropic"
+      model: "claude-sonnet"
+      temperature: 0.2
+      topP: 0.95
+      maxRetries: 1
+      timeoutMs: 45000
+      fallbackModels:
+        - provider: "openai"
+          model: "gpt-4.1"
+    tokenBudget:
+      maxInputTokens: 12000
+      maxOutputTokens: 4000
+      maxTotalTokens: 15000
+      reserveForSystem: 500
+      reserveForHandoff: 300
+      overflowStrategy: "summarize"
+    retryPolicy:
+      maxAttempts: 2
+      baseDelayMs: 500
+      maxDelayMs: 2000
+      backoffMultiplier: 2
+      retryableErrorCodes:
+        - "timeout"
+        - "provider-error"
+    executionLimits:
+      maxRuntimeMs: 60000
+      maxHopsPerRun: 12
+      maxNestedHandOffs: 6
+      maxConsecutiveFailures: 2
+    securityPolicy:
+      allowNetworkAccess: false
+      allowToolExecution: false
+      allowShellExecution: false
+      allowExternalNotifications: false
+      allowSkillLearning: true
+      shellExecutionRequiresApproval: true
+      requiredApprovalKinds:
+        - "tool-execution"
+      secretScopes: []
+      secretAccessMode: "deny"
+      maxPromptRiskScore: 0.35
+      allowedRuntimeTargets:
+        - "claude-code"
+      promptInjectionDefenseProfile: "strict-dev"
+  - id: "security-auditor"
+    name: "Security Auditor"
+    role: "security-auditor"
+    executionMode: "sync"
+    description: "Performs comprehensive security vulnerability assessments on code and test suites. Checks for injection, input validation flaws, exposed secrets, and unsafe patterns."
+    specializations:
+      - "vulnerability-assessment"
+      - "security-analysis"
+      - "compliance-review"
+    capabilityTags:
+      - "security"
+      - "audit"
+      - "vulnerability-detection"
+    bindings:
+      - skillId: "dev.security-audit"
+        mode: "primary"
+        required: true
+    systemPromptRef: "prompts/dev/security-auditor.md"
+    modelProfile:
+      provider: "anthropic"
+      model: "claude-sonnet"
+      temperature: 0.1
+      topP: 0.95
+      maxRetries: 1
+      timeoutMs: 45000
+      fallbackModels:
+        - provider: "openai"
+          model: "gpt-4.1"
+    tokenBudget:
+      maxInputTokens: 14000
+      maxOutputTokens: 3500
+      maxTotalTokens: 16000
+      reserveForSystem: 500
+      reserveForHandoff: 300
+      overflowStrategy: "summarize"
+    retryPolicy:
+      maxAttempts: 2
+      baseDelayMs: 500
+      maxDelayMs: 2000
+      backoffMultiplier: 2
+      retryableErrorCodes:
+        - "timeout"
+        - "provider-error"
+    executionLimits:
+      maxRuntimeMs: 60000
+      maxHopsPerRun: 12
+      maxNestedHandOffs: 6
+      maxConsecutiveFailures: 2
+    securityPolicy:
+      allowNetworkAccess: false
+      allowToolExecution: false
+      allowShellExecution: false
+      allowExternalNotifications: false
+      allowSkillLearning: true
+      shellExecutionRequiresApproval: true
+      requiredApprovalKinds:
+        - "tool-execution"
+      secretScopes: []
+      secretAccessMode: "deny"
+      maxPromptRiskScore: 0.25
+      allowedRuntimeTargets:
+        - "claude-code"
+      promptInjectionDefenseProfile: "strict-dev"
 routes:
   - id: "planner-to-coder"
     fromAgentId: "planner"
@@ -227,15 +353,51 @@ routes:
       - field: "handoff.disposition"
         operator: "equals"
         value: "route"
-  - id: "reviewer-back-to-coder"
+  - id: "reviewer-to-tester"
     fromAgentId: "reviewer"
+    toAgentId: "tester"
+    priority: 100
+    description: "Send reviewed code to tester for comprehensive test generation."
+    conditions:
+      - field: "handoff.disposition"
+        operator: "equals"
+        value: "route"
+  - id: "tester-to-security-auditor"
+    fromAgentId: "tester"
+    toAgentId: "security-auditor"
+    priority: 100
+    description: "Send code with tests to security auditor for vulnerability assessment."
+    conditions:
+      - field: "handoff.disposition"
+        operator: "equals"
+        value: "route"
+  - id: "tester-back-to-coder"
+    fromAgentId: "tester"
     toAgentId: "coder"
     priority: 90
-    description: "Send the task back to coding when review requests revisions."
+    description: "Send back to coder when tests reveal issues."
     conditions:
       - field: "handoff.disposition"
         operator: "equals"
         value: "retry"
+  - id: "security-auditor-back-to-coder"
+    fromAgentId: "security-auditor"
+    toAgentId: "coder"
+    priority: 95
+    description: "Send back to coder when security issues are found."
+    conditions:
+      - field: "handoff.disposition"
+        operator: "equals"
+        value: "retry"
+  - id: "security-auditor-completed"
+    fromAgentId: "security-auditor"
+    toAgentId: "planner"
+    priority: 80
+    description: "Workflow complete - return control to entry point."
+    conditions:
+      - field: "handoff.disposition"
+        operator: "equals"
+        value: "complete"
 metadata:
   domain: "software-delivery"
   owner: "engineering"

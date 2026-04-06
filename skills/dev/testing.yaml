@@ -1,0 +1,117 @@
+# File: skills/dev/testing.yaml
+schemaVersion: "1.0.0"
+id: "dev.testing"
+name: "Testing & Quality Assurance"
+version: "1.0.0"
+description: |
+  Generates comprehensive Jest test suites for code produced by the implementation coder.
+  Creates unit tests, integration tests, and edge case coverage with detailed test reports
+  and coverage metrics. Outputs test files and coverage reports.
+tags:
+  - "testing"
+  - "jest"
+  - "quality-assurance"
+  - "test-coverage"
+  - "unit-tests"
+role: "tester"
+inputSchema:
+  type: "object"
+  required: ["code", "requirements"]
+  properties:
+    code:
+      type: "object"
+      description: "The code produced by the implementation coder"
+      properties:
+        files:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              path:
+                type: "string"
+              content:
+                type: "string"
+        entryPoint:
+          type: "string"
+    requirements:
+      type: "array"
+      items:
+        type: "string"
+      description: "List of requirements the code must satisfy"
+    constraints:
+      type: "array"
+      items:
+        type: "string"
+      description: "Constraints for test generation (e.g., framework, coverage targets)"
+outputSchema:
+  type: "object"
+  required: ["testFiles", "coverageReport", "testResults"]
+  properties:
+    testFiles:
+      type: "array"
+      items:
+        type: "object"
+        properties:
+          path:
+            type: "string"
+          content:
+            type: "string"
+      description: "Generated test files with Jest tests"
+    coverageReport:
+      type: "object"
+      properties:
+        lines:
+          type: "number"
+        statements:
+          type: "number"
+        functions:
+          type: "number"
+        branches:
+          type: "number"
+        summary:
+          type: "string"
+    testResults:
+      type: "object"
+      properties:
+        total:
+          type: "number"
+        passing:
+          type: "number"
+        failing:
+          type: "number"
+        duration:
+          type: "string"
+        summary:
+          type: "string"
+    testPlan:
+      type: "string"
+      description: "Description of the testing strategy and coverage approach"
+capabilities:
+  - "test-generation"
+  - "jest-testing"
+  - "edge-case-identification"
+  - "coverage-analysis"
+  - "test-reporting"
+preferredRuntimeTargets:
+  - "claude-code"
+routingHints:
+  - "receives-code-from-coder"
+  - "generates-test-suite"
+  - "outputs-test-files-and-reports"
+promptRef: "prompts/dev/tester.md"
+securityNotes:
+  - "Does not execute arbitrary code - only generates test files"
+  - "Test assertions are based on provided requirements and code structure"
+metadata:
+  author: "tenclaw-framework"
+  domain: "software-delivery"
+  usageExamples:
+    - input:
+        code:
+          files:
+            - path: "src/validators/email.ts"
+              content: "export function isValidEmail(email: string): boolean { ... }"
+        requirements:
+          - "Validate email format using regex"
+          - "Handle edge cases (empty, null, undefined)"
+      expectedOutput: "Comprehensive Jest test suite with coverage report"

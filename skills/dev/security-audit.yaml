@@ -1,0 +1,153 @@
+# File: skills/dev/security-audit.yaml
+schemaVersion: "1.0.0"
+id: "dev.security-audit"
+name: "Security Audit & Vulnerability Assessment"
+version: "1.0.0"
+description: |
+  Performs comprehensive security analysis on code and test suites produced by the testing agent.
+  Identifies security vulnerabilities including injection attacks, input validation flaws, exposed
+  secrets, unsafe regex patterns, and other security risks. Outputs findings with severity levels
+  and remediation guidance.
+tags:
+  - "security"
+  - "vulnerability-assessment"
+  - "security-audit"
+  - "code-review"
+  - "compliance"
+role: "security-auditor"
+inputSchema:
+  type: "object"
+  required: ["code", "tests"]
+  properties:
+    code:
+      type: "object"
+      description: "The code and test files to audit"
+      properties:
+        sourceFiles:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              path:
+                type: "string"
+              content:
+                type: "string"
+        testFiles:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              path:
+                type: "string"
+              content:
+                type: "string"
+    requirements:
+      type: "array"
+      items:
+        type: "string"
+      description: "Original requirements for context"
+    context:
+      type: "object"
+      properties:
+        techStack:
+          type: "array"
+          items:
+            type: "string"
+        sensitiveDataTypes:
+          type: "array"
+          items:
+            type: "string"
+outputSchema:
+  type: "object"
+  required: ["findings", "summary", "riskLevel"]
+  properties:
+    findings:
+      type: "array"
+      items:
+        type: "object"
+        required: ["severity", "category", "title", "description", "location"]
+        properties:
+          severity:
+            type: "string"
+            enum: ["critical", "high", "medium", "low", "info"]
+          category:
+            type: "string"
+            enum: ["injection", "input-validation", "secrets-exposure", "unsafe-regex", "xss", "authentication", "authorization", "data-exposure", "other"]
+          title:
+            type: "string"
+          description:
+            type: "string"
+          location:
+            type: "object"
+            properties:
+              file:
+                type: "string"
+              line:
+                type: "number"
+              snippet:
+                type: "string"
+          remediation:
+            type: "string"
+          references:
+            type: "array"
+            items:
+              type: "string"
+    summary:
+      type: "object"
+      properties:
+        total:
+          type: "number"
+        critical:
+          type: "number"
+        high:
+          type: "number"
+        medium:
+          type: "number"
+        low:
+          type: "number"
+        info:
+          type: "number"
+        overallRisk:
+          type: "string"
+          enum: ["critical", "high", "medium", "low", "none"]
+        recommendation:
+          type: "string"
+    riskLevel:
+      type: "string"
+      enum: ["critical", "high", "medium", "low", "none"]
+      description: "Overall risk assessment"
+    auditReport:
+      type: "string"
+      description: "Detailed security audit report"
+capabilities:
+  - "vulnerability-detection"
+  - "security-analysis"
+  - "injection-detection"
+  - "secret-scanning"
+  - "input-validation-check"
+  - "regex-security-analysis"
+  - "compliance-verification"
+preferredRuntimeTargets:
+  - "claude-code"
+routingHints:
+  - "receives-code-and-tests-from-tester"
+  - "final-security-gate"
+  - "outputs-security-findings"
+promptRef: "prompts/dev/security-auditor.md"
+securityNotes:
+  - "Analyzes code for security vulnerabilities without executing it"
+  - "Flags potential secrets, credentials, or sensitive data exposure"
+  - "Identifies unsafe patterns but does not attempt to exploit them"
+metadata:
+  author: "tenclaw-framework"
+  domain: "software-delivery"
+  usageExamples:
+    - input:
+        code:
+          sourceFiles:
+            - path: "src/auth/login.ts"
+              content: "function login(userInput) { ... }"
+          testFiles:
+            - path: "tests/auth.test.ts"
+              content: "describe('login', () => { ... })"
+      expectedOutput: "Security findings with severity levels and remediation guidance"

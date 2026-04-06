@@ -99,9 +99,12 @@ class SimpleTextAgentRuntime implements AgentRuntime {
   ) {}
 
   async execute(context: AgentRunContext): Promise<AgentResult> {
+    console.log(`[SimpleTextAgentRuntime] Executing agent: ${context.agent.id}`);
     const systemPrompt = context.agent.systemPrompt || "You are a helpful assistant.";
     const userPrompt = `Task: ${context.request.goal}`;
     
+    console.log(`[SimpleTextAgentRuntime] Calling LLM gateway for agent: ${context.agent.id}`);
+    console.log(`[SimpleTextAgentRuntime] Model: ${context.agent.modelProfile.provider}/${context.agent.modelProfile.model}`);
     const response = await this.llmGateway.generate({
       scope: context.scope,
       modelProfile: context.agent.modelProfile,
@@ -117,6 +120,7 @@ class SimpleTextAgentRuntime implements AgentRuntime {
         agentId: context.agent.id,
       },
     });
+    console.log(`[SimpleTextAgentRuntime] Got response from LLM, output length: ${response.outputText?.length ?? 0}`);
 
     // Create a simple artifact from the text response
     const artifact: AgentArtifact = {
@@ -127,9 +131,11 @@ class SimpleTextAgentRuntime implements AgentRuntime {
       content: response.outputText,
     };
 
+    // Security auditor should complete the workflow, others route to next agent
+    const isLastAgent = context.agent.id === "security-auditor";
     const handoff: HandoffDirective = {
-      disposition: "complete",
-      reason: "Task completed successfully.",
+      disposition: isLastAgent ? "complete" : "route",
+      reason: isLastAgent ? "Security audit complete. Workflow finished." : "Task completed, routing to next agent in pipeline.",
     };
 
     return {
@@ -232,29 +238,143 @@ function createLLMGateway() {
       // LM Studio exposes an OpenAI-compatible API, usually on port 1234
       const apiKey = process.env.OPENAI_API_KEY ?? "lm-studio";
       const baseURL = process.env.OPENAI_BASE_URL ?? "http://localhost:1234/v1";
+      console.log(`[LLM Gateway] LM Studio configured at ${baseURL}`);
       const client = new OpenAISDKClient({ apiKey, baseURL });
       return {
         generate: async (request: unknown) => {
           const req = request as { modelProfile: { providerModelId?: string; model?: string }; prompts: Array<{ role: string; content: string }>; maxOutputTokens: number };
-          // Support both 'providerModelId' (AgentDefinition type) and 'model' (team YAML format)
-          const modelId = req.modelProfile.providerModelId ?? req.modelProfile.model ?? "local-model";
-          const response = await client.create({
-            model: modelId,
-            input: req.prompts.map(p => ({
-              role: p.role as "user" | "assistant" | "system",
-              content: [{ type: "text" as const, text: p.content }],
-            })),
-            max_output_tokens: req.maxOutputTokens,
+          const modelId = "local-model";
+          console.log(`[LLM Gateway] Calling LM Studio with streaming (model hint: ${modelId})`);
+          console.log(`[LLM Gateway] Prompts: ${req.prompts.length} messages`);
+
+          // Use fetch directly for streaming support
+          const response = await fetch(`${baseURL}/chat/completions`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+              model: modelId,
+              messages: req.prompts.map(p => ({
+                role: p.role,
+                content: p.content,
+              })),
+              max_tokens: req.maxOutputTokens,
+              stream: true,
+            }),
           });
+
+          if (!response.ok) {
+            throw new Error(`LM Studio API error: ${response.status} ${response.statusText}`);
+          }
+
+          if (!response.body) {
+            throw new Error("No response body available for streaming");
+          }
+
+          // Handle streaming with idle timeout
+          const IDLE_TIMEOUT_MS = 30000; // 30 seconds idle timeout
+          let outputText = "";
+          let lastTokenTime = Date.now();
+          let streamEnded = false;
+
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+
+          try {
+            while (!streamEnded) {
+              const now = Date.now();
+              const idleElapsed = now - lastTokenTime;
+
+              // Check idle timeout - cancel if no tokens for 30 seconds
+              if (idleElapsed > IDLE_TIMEOUT_MS) {
+                console.log(`[LLM Gateway] Idle timeout reached (${idleElapsed}ms), cancelling stream`);
+                reader.cancel("Idle timeout - no tokens received");
+                break;
+              }
+
+              // Read with idle timeout using Promise.race
+              const idleTimer = new Promise<never>((_, reject) => {
+                setTimeout(() => reject(new Error("IDLE_TIMEOUT")), IDLE_TIMEOUT_MS - idleElapsed);
+              });
+
+              const result = await Promise.race([
+                reader.read(),
+                idleTimer,
+              ]).catch((err) => {
+                if (err.message === "IDLE_TIMEOUT") {
+                  return { done: false, value: undefined, idleTimedOut: true };
+                }
+                throw err;
+              }) as { done: boolean; value?: Uint8Array; idleTimedOut?: boolean };
+
+              if (result.idleTimedOut) {
+                console.log(`[LLM Gateway] Idle timeout during read (${IDLE_TIMEOUT_MS}ms), cancelling stream`);
+                reader.cancel("Idle timeout - no tokens received during read");
+                break;
+              }
+
+              const { done, value } = result;
+
+              if (done) {
+                streamEnded = true;
+                break;
+              }
+
+              if (value) {
+                buffer += decoder.decode(value, { stream: true });
+                lastTokenTime = Date.now();
+
+                // Parse SSE format: data: {...}
+                const lines = buffer.split("\n");
+                buffer = lines.pop() || ""; // Keep incomplete line in buffer
+
+                for (const line of lines) {
+                  const trimmed = line.trim();
+                  if (trimmed.startsWith("data: ")) {
+                    const data = trimmed.slice(6);
+                    if (data === "[DONE]") {
+                      streamEnded = true;
+                      break;
+                    }
+                    try {
+                      const parsed = JSON.parse(data);
+                      const content = parsed.choices?.[0]?.delta?.content;
+                      if (content) {
+                        outputText += content;
+                      }
+                      if (parsed.choices?.[0]?.finish_reason) {
+                        streamEnded = true;
+                        break;
+                      }
+                    } catch (e) {
+                      // Ignore parse errors for malformed chunks
+                    }
+                  }
+                }
+              }
+            }
+          } catch (error) {
+            console.error(`[LLM Gateway] Stream error: ${error instanceof Error ? error.message : String(error)}`);
+            throw error;
+          } finally {
+            reader.releaseLock();
+          }
+
+          console.log(`[LLM Gateway] Stream complete, total output length: ${outputText.length}`);
+          console.log(`[LLM Gateway] Response preview: ${outputText.substring(0, 200)}...`);
+
           return {
-            provider: "openai" as const, // Uses openai adapter under the hood
-            model: response.model,
-            outputText: response.output_text,
-            finishReason: "stop" as const,
+            provider: "openai" as const,
+            model: modelId,
+            outputText,
+            finishReason: streamEnded ? "stop" : "length",
             tokenUsage: {
-              inputTokens: response.usage?.input_tokens ?? 0,
-              outputTokens: response.usage?.output_tokens ?? 0,
-              totalTokens: response.usage?.total_tokens ?? 0,
+              inputTokens: 0,
+              outputTokens: 0,
+              totalTokens: 0,
             },
             latencyMs: 0,
           };
@@ -710,13 +830,21 @@ async function main(): Promise<void> {
     // Poll for completion with agent output display
     let isComplete = false;
     let attempts = 0;
-    const maxAttempts = 30;
+    const maxAttempts = 150; // 300 seconds (5 minutes) total timeout
 
     while (!isComplete && attempts < maxAttempts) {
       await new Promise(resolve => setTimeout(resolve, 2000));
       
       const run = await workflowStateStore.get(CONFIG.scope, runId);
       if (!run) continue;
+
+      // Log current status every 5 attempts (10 seconds)
+      if (attempts % 5 === 0) {
+        const lastAgent = run.agentOutputs?.length > 0 
+          ? run.agentOutputs[run.agentOutputs.length - 1]?.agentName 
+          : "starting";
+        console.log(`  [Poll ${attempts}/${maxAttempts}] Status: ${run.status}, Last agent: ${lastAgent}`);
+      }
 
       // Display agent outputs as they become available
       if (run.agentOutputs && run.agentOutputs.length > 0) {

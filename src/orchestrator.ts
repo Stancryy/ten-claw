@@ -294,7 +294,9 @@ export class ProductionOrchestrator implements AgentOrchestrator {
     queueTask?: DurableTaskEnvelope,
     lease?: TaskLease,
   ): Promise<void> {
+    console.log(`[Orchestrator] executeAgent called for agent: ${agentId}`);
     if (!agentId) {
+      console.log(`[Orchestrator] No agentId provided, failing workflow`);
       await this.failWorkflow(state, {
         code: "routing-error",
         message: "No recipient agent id was provided for execution.",
@@ -304,8 +306,10 @@ export class ProductionOrchestrator implements AgentOrchestrator {
     }
 
     const runtime = await this.requireAgentRuntime(state.scope, agentId);
+    console.log(`[Orchestrator] Got runtime for agent: ${agentId}`);
     const compatibilityError = this.validateRuntimeCompatibility(state.team, runtime.definition);
     if (compatibilityError) {
+      console.log(`[Orchestrator] Runtime compatibility error: ${compatibilityError.message}`);
       await this.failWorkflow(state, compatibilityError);
       return;
     }
@@ -323,6 +327,7 @@ export class ProductionOrchestrator implements AgentOrchestrator {
     state.attemptByAgentId[agentId] = (state.attemptByAgentId[agentId] ?? 0) + 1;
     state.updatedAt = this.nowIso();
     await this.deps.workflowStore.update(state);
+    console.log(`[Orchestrator] Publishing task.started for agent: ${agentId}`);
     await this.deps.messageBus.publish(this.buildMessage({
       kind: "task.started",
       scope: state.scope,
@@ -337,7 +342,9 @@ export class ProductionOrchestrator implements AgentOrchestrator {
       },
     }));
 
+    console.log(`[Orchestrator] Building context for agent: ${agentId}`);
     const context = await this.buildContext(state, runtime.definition, queueTask, lease);
+    console.log(`[Orchestrator] Context built, running security preflight`);
     await this.runPromptSecurityPreflight(state, context);
     const record: AgentRunRecord = {
       runId: state.runId,
@@ -354,7 +361,9 @@ export class ProductionOrchestrator implements AgentOrchestrator {
     }
 
     try {
+      console.log(`[Orchestrator] Executing agent with retry: ${agentId}`);
       const result = await this.executeWithRetry(runtime, context, record);
+      console.log(`[Orchestrator] Agent execution completed: ${agentId}, status: ${result.status}`);
       const validationError = this.validateAgentResult(state, runtime.definition, result);
       if (validationError) {
         record.status = "failed";
@@ -383,6 +392,7 @@ export class ProductionOrchestrator implements AgentOrchestrator {
       );
     } catch (error) {
       const frameworkError = normalizeError(error);
+      console.log(`[Orchestrator] Agent execution failed: ${agentId}, error: ${frameworkError.code} - ${frameworkError.message}`);
       record.status = "failed";
       record.finishedAt = this.nowIso();
       record.error = frameworkError;
@@ -712,10 +722,9 @@ export class ProductionOrchestrator implements AgentOrchestrator {
     while (attempts < policy.maxAttempts) {
       attempts += 1;
       try {
-        return await withTimeout(
-          runtime.execute(context),
-          runtime.definition.executionLimits.maxRuntimeMs,
-        );
+        // No fixed timeout - the runtime (e.g., LM Studio streaming) handles its own timeout/idle detection
+        console.log(`[Orchestrator] Calling runtime.execute() without fixed timeout (attempt ${attempts}/${policy.maxAttempts})`);
+        return await runtime.execute(context);
       } catch (error) {
         record.error = normalizeError(error);
         if (!record.error.retryable || attempts >= policy.maxAttempts) {

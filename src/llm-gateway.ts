@@ -187,10 +187,17 @@ export class BudgetAwareLLMGateway implements LLMGateway {
           const adapter = this.requireAdapter(modelProfile.provider);
           validateProviderCapabilities(adapter, prepared);
           const startedAt = this.clock.now();
+          console.log(`[LLM Gateway] Calling ${modelProfile.provider}/${modelProfile.model}...`);
           const response = await withTimeout(
             adapter.generate(prepared),
             modelProfile.timeoutMs,
           );
+          console.log(`[LLM Gateway] Raw response from ${modelProfile.provider}:`);
+          console.log(`  Provider: ${response.provider}`);
+          console.log(`  Model: ${response.model}`);
+          console.log(`  Output text (first 500 chars): ${response.outputText?.substring(0, 500)}`);
+          console.log(`  Latency: ${response.latencyMs}ms`);
+          console.log(`  Tokens: ${JSON.stringify(response.tokenUsage)}`);
           const completed = finalizeResponse(response, prepared, this.clock.now() - startedAt);
           const validated = validateStructuredResponse(completed, prepared.responseFormat);
           this.resetProviderCircuit(modelProfile.provider);
