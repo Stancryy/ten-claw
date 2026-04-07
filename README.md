@@ -1,290 +1,262 @@
-<!-- File: README.md -->
-# Multi-Agent Framework
+# TenClaw
 
-Production-oriented TypeScript framework for orchestrating specialized agents with:
+TypeScript framework for multi-agent team orchestration, focused on production readiness, multi-tenant isolation, hybrid memory, declarative/learned routing, and multi-provider LLM integration.
 
-- hybrid message-passing orchestration
-- vector memory plus key-value session state
-- serializable JSON/YAML skills
-- multi-provider LLM routing with token budgets and fallbacks
-- low-code team definitions
-- enterprise approval, audit, and notification hooks
+## Overview
 
-## Architecture Overview
+TenClaw organizes workflows of specialized agents (for example: `planner`, `coder`, `reviewer`, `tester`, `security-auditor`) and content pipelines (`researcher`, `writer`, `editor`) through:
+
+- message-based orchestration with typed handoff;
+- persistent workflow state and semantic memory;
+- YAML/JSON skill registry with support for learned skills;
+- LLM gateway with token budgeting, fallback, and circuit breaker;
+- human approvals, audit logging, and notifications (Telegram/Discord/WhatsApp);
+- decoupled bootstrap interfaces for plugging in real infrastructure.
+
+## Core Features
+
+- **Production orchestrator**: `ProductionOrchestrator` controls the full workflow lifecycle (`queued`, `running`, `awaiting-approval`, `completed`, `failed`, `timed-out`, `cancelled`).
+- **Explicit agent handoff**: driven by `AgentResult.handoff.disposition` (`route`, `retry`, `complete`, `await-approval`, etc.).
+- **Declarative + learned routing**: `DeclarativeTaskRouter` with `team.yaml` rules and `LearningEngine` suggestions.
+- **Hybrid memory**: KV session state (`SessionStateStore`) + vector memory (`MemoryStore`) + skill indexing.
+- **Versionable file-based skills**: libraries under `skills/` with learned skills under `skills/learned/`.
+- **Multi-provider LLM integration**: OpenAI, Anthropic, Google Gemini, Groq, and Ollama via adapters.
+- **Durable execution infrastructure**: modules for durable queues, workflow engine, idempotency, DLQ, and circuit breaker.
+- **Observability and compliance**: Redis Streams audit logging and human approval trail.
+
+## Architecture (Summary)
 
 ```text
-+--------------------+      +------------------------+      +----------------------+
-| Team YAML / JSON   | ---> | ProductionOrchestrator | ---> | RuntimePlatformAdapter|
-| skills/*.yaml      |      | task routing + handoff |      | Claude/Cursor/Agents |
-+--------------------+      +-----------+------------+      +-----------+----------+
-                                          |                               |
-                                          v                               v
-                               +---------------------+         +---------------------+
-                               | Message Bus / Queue |         | BudgetAwareLLMGateway|
-                               | immutable messages  |         | optimize + fallback |
-                               +----------+----------+         +----------+----------+
-                                          |                               |
-                                          v                               v
-                               +---------------------+         +----------------------+
-                               | Workflow Store      |         | Provider Adapters    |
-                               | run state + replay  |         | OpenAI/Anthropic/    |
-                               +---------------------+         | Gemini/Groq/Ollama   |
-                                                               +----------------------+
-
-+----------------------+     +----------------------+      +----------------------+
-| Session State Store  | <-> | Memory Snapshot      | <--> | Vector Memory Store  |
-| Redis-like KV        |     | session + semantic   |      | semantic + skill mem |
-+----------------------+     +----------------------+      +----------------------+
-
-+----------------------+     +----------------------+      +----------------------+
-| Skill Registry       | --> | Learning Engine      | -->  | Notification Adapters|
-| Git + learned store  |     | routing + skill learn|      | Telegram/Discord/WA |
-+----------------------+     +----------------------+      +----------------------+
+Team YAML + Skills YAML/JSON
+        |
+        v
+ProductionOrchestrator
+  |-> TeamRepository / AgentRegistry
+  |-> TaskRouter (declarative + learned hints)
+  |-> WorkflowStateStore
+  |-> SessionStateStore + MemoryStore + SkillRegistry
+  |-> MessageBus / DurableTaskQueue
+  |-> ApprovalGateway / AuditLogger / Notifiers
+  |-> LearningEngine (optional)
+        |
+        v
+PlatformAgentRuntime -> RuntimePlatformAdapter -> LLMGateway -> ProviderAdapters
 ```
 
-## Design Notes
+## Technologies
 
-### Core Layers
+- **Language and build**
+  - TypeScript 5 (`strict: true`)
+  - Node.js `>=20`
+- **LLM/AI**
+  - `openai`
+  - `@anthropic-ai/sdk`
+  - adapters for Gemini, Groq, and Ollama
+  - `js-tiktoken` (token approximation/counting)
+- **Persistence and memory**
+  - `ioredis` (state/streams/queue)
+  - `chromadb` + `chromadb-default-embed` (vectors)
+- **Config and serialization**
+  - `dotenv`
+  - `yaml`
+- **Local infrastructure**
+  - `docker-compose` with Redis and ChromaDB
 
-1. `src/types.ts`
-   Defines the minimal swappable contracts for orchestrator, memory, skills, LLM gateway, approvals, audit, notifiers, and runtime platforms.
-2. `src/orchestrator.ts`
-   Owns workflow lifecycle, retry boundaries, message emission, handoff control, approval pauses, and completion/failure notifications.
-3. `src/memory.ts` and `src/skills.ts`
-   Split persistence between cheap session state, semantic memory, and learned skill storage so retrieval stays fast while long-term storage remains controllable.
-4. `src/llm-gateway.ts` and `src/provider-adapters.ts`
-   Enforce token budgets, prompt compaction, provider fallback, and circuit protection behind one normalized provider interface.
-5. `src/notifiers/index.ts`
-   Delivers final outputs through channel adapters without leaking provider-specific APIs into orchestration logic.
+## Prerequisites
 
-### Handoff Protocol
+- Node.js 20+
+- npm
+- Docker + Docker Compose (for `infra:up`)
 
-- Agents return a canonical `AgentResult`.
-- `AgentResult.handoff.disposition` drives the next step: `complete`, `route`, `retry`, `await-approval`, `fail`, or `noop`.
-- `targetAgentId` is optional; if absent, the router resolves the next agent from low-code route rules or learned routing signals.
-- Artifacts, memory writes, audit events, and learned skill candidates are packaged with the same result envelope so the orchestrator can persist them atomically per hop.
-
-### Persistent Data Model
-
-- Session continuity uses `SessionStateStore` for cheap mutable per-session state such as checkpoints and approval context.
-- Cross-session recall uses `MemoryStore` with `MemoryRecord` documents in `semantic`, `skill`, `session`, and `audit` namespaces.
-- Skill definitions remain serializable YAML/JSON in Git, while learned skills are stored separately and optionally indexed back into semantic memory for retrieval.
-- Tenant isolation is enforced through `TenantScope` keys on teams, memory namespaces, session keys, workflow records, audit events, and notifications.
-
-### Failure Strategy
-
-- LLM timeout: retried according to the agent retry policy and then failed over through gateway model fallback.
-- Agent loop or runaway handoff: blocked by hop, nested handoff, runtime, and consecutive failure limits.
-- Malformed model output: normalized into a framework error, retried when safe, and escalated to workflow failure if retries are exhausted.
-- Prompt injection or privileged action risk: blocked during security preflight or routed to human approval before execution.
-- Provider instability: isolated with per-provider circuit breaking in the gateway and optional queue-level circuit breaking in `src/workflow-engine.ts`.
-
-## Implemented Layers
-
-- Shared contracts: `src/types.ts`
-- Orchestration runtime: `src/orchestrator.ts`
-- Orchestrator support contracts: `src/orchestrator-support.ts`
-- Memory layer: `src/memory.ts`
-- Skill registry: `src/skills.ts`
-- Team repository: `src/teams.ts`
-- Workflow state persistence: `src/workflow-state.ts`
-- Generic workflow backend contracts: `src/workflow-backend.ts`
-- Generic-backend to orchestrator-store bridge: `src/workflow-backend-adapter.ts`
-- Backend registry and DI resolution: `src/backend-registry.ts`
-- LLM gateway: `src/llm-gateway.ts`
-- Concrete provider adapters: `src/provider-adapters.ts` (`OpenAI`, `Anthropic`, `Google Gemini`, `Groq`, `Ollama`)
-- Runtime platform adapters: `src/runtime-platforms.ts`
-- Bootstrap helpers: `src/bootstrap.ts`
-- End-to-end bootstrap example: `src/example-bootstrap.ts`
-- Notification adapters: `src/notifiers/index.ts`
-- Example team: `teams/dev-team.yaml`
-
-## Install
-
-This repository currently provides the framework core and integration contracts.
-You still need to add your concrete infrastructure adapters.
-
-Install dependencies:
+## Installation
 
 ```bash
 npm install
 ```
 
-Build and typecheck:
+Build and type check:
 
 ```bash
 npm run build
 npm run typecheck
 ```
 
-Bundled package dependency:
+## Configuration
+
+1. Copy `.env.example` to `.env`.
+2. Fill in credentials for the LLM providers you want to use.
+3. Start local infrastructure:
 
 ```bash
-npm install yaml
+npm run infra:up
 ```
 
-Provider and backend adapters you will wire separately:
+Important variables:
 
-- OpenAI / Anthropic / Gemini / Groq / Ollama SDK or HTTP clients
-- Redis-compatible key-value client
-- Vector store client for Chroma, Pinecone, or another backend
+- `OPENAI_API_KEY`
+- `ANTHROPIC_API_KEY`
+- `LLM_PROVIDER` (`openai`, `anthropic`, `lmstudio`, `ollama`)
+- `OPENAI_BASE_URL` (optional for compatible endpoints)
+- `REDIS_URL`
+- `CHROMA_URL`
+- `TEAM_ID` (for example: `dev-team`, `business-team`)
+- `TEAMS_ROOT`, `SKILLS_ROOT`
 
-## Configure
+## Usage
 
-1. Use or extend the concrete provider adapters in `src/provider-adapters.ts` for `OpenAI`, `Anthropic`, `Google Gemini`, `Groq`, and `Ollama`.
-2. Create a vector adapter implementing `VectorStoreClient` from `src/memory.ts`.
-3. Create a key-value adapter implementing `KeyValueStoreClient` from `src/memory.ts`.
-4. Create a learned-skill persistence adapter implementing `SkillPersistenceStore` from `src/skills.ts`.
-5. Create a team repository with `FileSystemTeamRepository` from `src/teams.ts` and a real YAML parser.
-6. Choose either the generic backend interface in `src/workflow-backend.ts` or the orchestrator-facing persistence wrapper in `src/workflow-state.ts`. If you start with the generic backend, register a `BackendFactory` in `src/backend-registry.ts` and bridge it into the orchestrator using `WorkflowBackendStateStoreAdapter` from `src/workflow-backend-adapter.ts`.
-7. Provide a secret source implementing `SecretProvider` from `src/types.ts`.
-8. Choose a runtime platform adapter from `src/runtime-platforms.ts` for `Claude Code`, `Cursor`, or `OpenAI Agents SDK`.
-9. Register `TelegramNotifier`, `DiscordNotifier`, or `WhatsAppNotifier` with real channel secrets and destination resolution if `destinationRef` is symbolic.
+### Main demo
 
-## Run First Team
-
-Load the example [dev-team.yaml](file:///c:/Users/maexg/Desktop/tenClaw/teams/dev-team.yaml) and wire it into the orchestrator. A full assembly reference now lives in [example-bootstrap.ts](file:///c:/Users/maexg/Desktop/tenClaw/src/example-bootstrap.ts):
-
-```ts
-import { createExampleRuntime } from "./src/example-bootstrap";
-
-// REQUIRES:
-// - concrete LLM provider adapters or the injected SDK clients expected by `src/provider-adapters.ts`
-// - prompt assets and real prompt-template loading
-// - concrete workflow store, message bus, approval gateway, audit logger, and secret provider
-// - concrete vector and key-value clients
-// - a real YAML parser, e.g. `parse` from `yaml`
+```bash
+npm run demo
 ```
 
-Example bootstrap shape:
+The `examples/run.ts` script:
 
-```ts
-const { runtime, team } = await createExampleRuntime({
-  scope: {
-    tenantId: "tenant-acme",
-    workspaceId: "workspace-core-platform",
-  },
-  teamId: "dev-team",
-  parseYaml,
-  llmGateway,
-  promptTemplateLoader,
-  vectorClient,
-  keyValueClient: kvClient,
-  learnedSkillStore,
-  workflowStore,
-  messageBus,
-  approvalGateway,
-  auditLogger,
-  secretProvider,
-  notifiers: {
-    telegram: {
-      botTokenSecretKey: "TELEGRAM_BOT_TOKEN",
-    },
-  },
-});
+- loads `.env`;
+- initializes Redis + Chroma;
+- loads a team (`dev-team` or `business-team`);
+- assembles runtime/orchestrator;
+- executes the full end-to-end workflow;
+- optionally sends Telegram notifications.
+
+### Provider adapter test
+
+```bash
+npx ts-node examples/test-providers.ts
 ```
 
-You can also import the framework from the public package barrel:
+## API Example
+
+### Start a workflow
 
 ```ts
-import {
-  ProductionOrchestrator,
-  BudgetAwareLLMGateway,
-  createFrameworkRuntime,
-  createWorkflowBackendRegistry,
-} from "./dist";
-```
+import { ProductionOrchestrator, type WorkflowRequest } from "./src";
 
-Start a workflow with a tenant-scoped request:
-
-```ts
-const runId = await orchestrator.startWorkflow({
-  scope: {
-    tenantId: "tenant-acme",
-    workspaceId: "workspace-core-platform",
-    environment: "dev",
-  },
+const request: WorkflowRequest = {
+  scope: { tenantId: "demo-tenant", workspaceId: "demo-workspace", environment: "dev" },
   teamId: "dev-team",
   sessionId: "session-001",
   requesterId: "user-123",
-  goal: "Add retry-aware Telegram delivery to the notification layer",
-  input: {
-    repository: "tenClaw",
-  },
-});
+  goal: "Create an email validator with tests",
+  input: { language: "typescript" },
+};
+
+const runId = await orchestrator.startWorkflow(request);
 ```
 
-Resolve workflow persistence from a named backend factory:
+### Build runtime from backend registry
 
 ```ts
 import {
   createFrameworkRuntimeFromBackendRegistry,
-} from "./src/bootstrap";
-import { createWorkflowBackendRegistry } from "./src/backend-registry";
-
-const backendRegistry = createWorkflowBackendRegistry([
-  {
-    name: "primary-workflow-backend",
-    factory: ({ scope, config }) => {
-      // REQUIRES: return a concrete WorkflowStateBackend implementation.
-      throw new Error(`Not implemented for ${scope?.tenantId ?? "default"} scope.`);
-    },
-  },
-]);
-
-const { runtime, workflowPersistence } = await createFrameworkRuntimeFromBackendRegistry({
-  backendRegistry,
-  backend: {
-    name: "primary-workflow-backend",
-    scope: {
-      tenantId: "tenant-acme",
-      workspaceId: "workspace-core-platform",
-    },
-  },
-  framework: {
-    teamRepository,
-    sessionStateStore,
-    memoryStore,
-    skillRegistry,
-    messageBus,
-    approvalGateway,
-    auditLogger,
-    agentRuntimes,
-  },
-});
+  createWorkflowBackendRegistry,
+} from "./src";
 ```
 
-## Execution Model
+## Directory Structure
 
-- The orchestrator owns workflow state and emits immutable bus messages.
-- Agents communicate by returning `AgentResult` plus a typed `handoff`.
-- Memory is split between session state and semantic recall.
-- Skills are loaded from disk and merged with learned runtime skills.
-- The LLM gateway enforces token budgets before and after provider calls.
-- Runtime adapters normalize prompt and result handling for `Claude Code`, `Cursor`, and `OpenAI Agents SDK`.
-- External shell execution still requires explicit human approval.
+```text
+ten-claw/
+  src/                  # Framework core (orchestration, types, adapters, backends)
+  examples/             # Demo and provider test scripts
+  teams/                # Team definitions (YAML)
+  skills/               # Skills by domain (dev/business/shared/learned)
+  prompts/              # Prompts by agent role
+  CONTRIBUTING.md       # Contribution guide
+  LICENSE               # MIT license
+  docker-compose.yml    # Local Redis + ChromaDB
+  .env.example          # Environment template
+```
 
-## Current Gaps
+## API Reference (Main Modules)
 
-- Provider adapter wrappers are present, but concrete SDK or HTTP client instances and credentials still need to be supplied.
-- Concrete vector and key-value backends are not wired yet.
-- Concrete workflow-state document/index backends are not wired yet.
-- Concrete host-native SDK transport bindings are not wired yet.
-- Team prompt assets and skill documents are not added yet.
-- Durable workflow store and message bus implementations are not added yet.
+Public surface is exported by `src/index.ts`.
 
-## Next Recommended Step
+- `types.ts`
+  - core contracts (`WorkflowRequest`, `AgentResult`, `SkillDefinition`, `LLMRequest`, `MemoryStore`, etc.).
+- `orchestrator.ts`
+  - `ProductionOrchestrator`.
+- `orchestrator-support.ts`
+  - `WorkflowRecord`, `DeclarativeTaskRouter`, budget/error helpers.
+- `bootstrap.ts`
+  - `createFrameworkRuntime`, `createFrameworkRuntimeFromBackendRegistry`, `StaticAgentRegistry`.
+- `llm-gateway.ts`
+  - `BudgetAwareLLMGateway`, `DefaultPromptOptimizer`.
+- `provider-adapters.ts`
+  - `OpenAIProviderAdapter`, `AnthropicProviderAdapter`, `GeminiProviderAdapter`, `GroqProviderAdapter`, `OllamaProviderAdapter`.
+- `sdk-clients.ts`
+  - `OpenAISDKClient`, `AnthropicSDKClient`, `ApproximateTokenCounter`.
+- `memory.ts`
+  - `ScopedMemoryStore`, `ScopedSessionStateStore`, `MemorySnapshotBuilder`, `PersistentMemoryCoordinator`.
+- `memory-backends.ts`
+  - `RedisKVClient`, `ChromaVectorClient`.
+- `skills.ts`
+  - `CompositeSkillRegistry`, `FileSystemSkillSource`, `FileSystemSkillRegistry`, `SkillMemoryIndexer`.
+- `teams.ts`
+  - `FileSystemTeamRepository`, JSON/YAML codecs.
+- `workflow-state.ts`
+  - `ScopedWorkflowStateStore`, `WorkflowRunReader`.
+- `workflow-backend.ts` / `workflow-backend-adapter.ts` / `backend-registry.ts`
+  - generic backend contract and bridge to `WorkflowStateStore`.
+- `workflow-engine.ts` / `workflow-adapters.ts` / `vendor-adapters.ts` / `workflow-backends.ts`
+  - durable engine/queue, idempotency/circuit breaker stores, and Redis/Bull-like integrations.
+- `notifiers/`
+  - `TelegramNotifier`, `DiscordNotifier`, `WhatsAppNotifier`, `NotifierRegistry`.
+- `approval-gateway.ts`
+  - `CliApprovalGateway` (interactive CLI approval).
+- `audit-logger.ts`
+  - `RedisAuditLogger`.
+- `learning-engine.ts`
+  - `LearningEngineImpl` (pattern extraction, learned skills, routing score updates).
 
-Implement remaining production adapters for:
+## Included Teams and Skills
 
-- `Gemini`, `Groq`, and `Ollama`
-- Redis for session state
-- Chroma or Pinecone for semantic memory
-- filesystem or database-backed team repository
-- Telegram / Discord / WhatsApp channel credentials and destination resolvers
+- **Teams**
+  - `teams/dev-team.yaml`: 5-agent pipeline (`planner -> coder -> reviewer -> tester -> security-auditor`).
+  - `teams/business-team.yaml`: 3-agent pipeline (`researcher -> writer -> editor`).
+- **Prompts**
+  - detailed prompts per role in `prompts/dev/` and `prompts/business/`.
+- **Skills**
+  - `skills/dev`: planning, TypeScript coding, code review, testing, security audit.
+  - `skills/business`: research, writing, and editing.
+  - `skills/shared`: reusable generic skills across scenarios.
+  - `skills/learned`: auto-generated skills from the learning engine (pending review/approval).
 
-<!-- TODO:
-- Add package metadata and scripts once the repo bootstrapping layer is added.
-- Add a full bootstrap example that instantiates repositories, adapters, and agents.
-- Add deployment notes for Claude Code CLI, Cursor, and OpenAI Agents SDK adapters.
--->
+## Current State and Limitations
+
+- There are TODOs in the codebase for production completion (for example: DLQ replay, stronger schema validation, LLM streaming, health checks, and complete adapters for some scenarios).
+- Some modules are partially implemented in the durable flow (`ack/release` are simplified in `RedisTaskQueue`).
+- `LearningEngineImpl` still has unimplemented methods (`approveSkill`, `rejectSkill`, YAML import).
+- Telegram notifier implementation overlaps between `src/notifiers/index.ts` and `src/notifiers/telegram.ts`.
+- License inconsistency: `LICENSE` is MIT, but `package.json` currently declares `"license": "UNLICENSED"`.
+
+## Dependencies
+
+Dependencies are defined in `package.json`.
+
+- **runtime**: `openai`, `@anthropic-ai/sdk`, `ioredis`, `chromadb`, `yaml`, `dotenv`, `js-tiktoken`
+- **dev**: `typescript`, `@types/node`
+
+## Contributing
+
+See `CONTRIBUTING.md`.
+
+Recommended flow:
+
+1. Fork and create a feature branch.
+2. Run `npm install`.
+3. Run `npm run typecheck` and `npm run build`.
+4. Validate demo flow (`npm run demo`) when applicable.
+5. Open a PR with clear description and impact.
+
+## License
+
+This project includes an MIT license in the `LICENSE` file.
+
+## Suggested Short-Term Roadmap
+
+- finalize the durable queue layer (`ack/release`, DLQ, replay);
+- unify Telegram notifier implementation;
+- complete pending learning engine APIs;
+- align `package.json` license metadata with the `LICENSE` file;
+- add automated tests for critical modules (workflow/backends/LLM gateway).
