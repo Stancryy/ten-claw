@@ -65,6 +65,8 @@ import {
   RedisAuditLogger,
   // Notifier
   TelegramNotifier,
+  // LearningEngine
+  LearningEngineImpl,
   type FrameworkRuntime,
   type WorkflowRequest,
   type TenantScope,
@@ -775,6 +777,13 @@ async function main(): Promise<void> {
     // Create workflow state store wrapper around Redis backend
     const workflowStateStore = new WorkflowBackendStateStoreAdapter(workflowBackend);
 
+    // Create audit logger (shared between orchestrator and learning engine)
+    const auditLogger = new RedisAuditLogger({
+      client: redisClient,
+      keyPrefix: "tenclaw",
+      maxStreamLength: 100_000,
+    });
+
     const orchestrator = new ProductionOrchestrator({
       teamRepository,
       agentRegistry,
@@ -789,10 +798,40 @@ async function main(): Promise<void> {
         maxStreamLength: 10_000,
       }),
       approvalGateway: new CliApprovalGateway({ timeoutMs: 60_000 }),
-      auditLogger: new RedisAuditLogger({
-        client: redisClient,
-        keyPrefix: "tenclaw",
-        maxStreamLength: 100_000,
+      auditLogger,
+      // Wire up the LearningEngine with Redis KV client
+      learningEngine: new LearningEngineImpl({
+        config: {
+          persistence: {
+            directory: "./skills/learned",
+            autoApproveThreshold: 0.8,
+            requireReview: true,
+            namingPrefix: "learned",
+            versioningStrategy: "timestamp",
+          },
+          routerScoring: {
+            lookbackWindowMs: 7 * 24 * 60 * 60 * 1000, // 7 days
+            minSampleSize: 3,
+            successRateWeight: 0.6,
+            latencyWeight: 0.2,
+            tokenEfficiencyWeight: 0.2,
+            recencyWeight: 0.1,
+            scoreSmoothingFactor: 0.3,
+          },
+          analysis: {
+            minRunsBeforeAnalysis: 1,
+            patternDetectionThreshold: 0.7,
+            jsonQualityThreshold: 0.8,
+            maxSkillsPerRun: 5,
+          },
+        },
+        workflowStore: workflowStateStore,
+        skillRegistry,
+        kvClient: {
+          get: async (key: string) => redisClient.get(key),
+          set: async (key: string, value: string) => { await redisClient.set(key, value); },
+        },
+        auditLogger,
       }),
     });
 

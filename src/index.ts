@@ -32,6 +32,7 @@ export * from "./notifiers";
 export * from "./approval-gateway";
 export * from "./message-bus";
 export * from "./audit-logger";
+export * from "./learning-engine";
 
 // TODO:
 // - Add explicit export curation if the package surface becomes too broad for semver stability.

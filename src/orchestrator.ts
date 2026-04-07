@@ -442,7 +442,7 @@ export class ProductionOrchestrator implements AgentOrchestrator {
       }
     }
 
-    await this.deps.messageBus.publish(this.buildMessage({
+    const completedMessage = this.buildMessage({
       kind: "task.completed",
       scope: state.scope,
       runId: state.runId,
@@ -455,8 +455,36 @@ export class ProductionOrchestrator implements AgentOrchestrator {
         taskId: queueTask?.id,
         leaseId: lease?.id,
         budgetOutcome: result.budgetResult?.outcome,
+        // Additional fields for learning analysis
+        agentRole: agent.role,
+        agentName: agent.name,
+        output: result as unknown as JsonObject,
+        tokenUsage: result.tokenUsage as unknown as JsonObject,
+        latencyMs: record.finishedAt && record.startedAt 
+          ? Date.parse(record.finishedAt) - Date.parse(record.startedAt)
+          : 0,
       },
-    }));
+    });
+    
+    // Store in workflow history for learning analysis
+    state.messageHistory.push(completedMessage);
+    state.updatedAt = this.nowIso();
+    await this.deps.workflowStore.update(state);
+    
+    await this.deps.messageBus.publish(completedMessage);
+
+    // Record audit event for agent completion (used by LearningEngine for historical analysis)
+    await this.recordAudit("workflow.agent.completed", state, result.status === "succeeded" ? "info" : "error", {
+      agentId: agent.id,
+      agentRole: agent.role,
+      agentName: agent.name,
+      status: result.status,
+      summary: result.summary,
+      totalTokens: result.tokenUsage?.totalTokens,
+      latencyMs: record.finishedAt && record.startedAt 
+        ? Date.parse(record.finishedAt) - Date.parse(record.startedAt)
+        : 0,
+    });
 
     if (result.budgetResult && result.budgetResult.outcome !== "not-needed") {
       await this.deps.messageBus.publish(this.buildMessage({
@@ -791,6 +819,37 @@ export class ProductionOrchestrator implements AgentOrchestrator {
       routingDecisionCount: state.routingDecisions.length,
     });
     await this.sendNotifications(state, "completed", summary);
+    
+    // Trigger post-run learning analysis
+    await this.runPostRunLearning(state.runId, state.scope, "completed");
+  }
+
+  /**
+   * Post-run learning hook - triggers analyze() after workflow completion.
+   * Runs asynchronously to not block workflow completion.
+   */
+  private async runPostRunLearning(
+    runId: RunId,
+    scope: TenantScope,
+    finalStatus: "completed" | "failed" | "timed-out" | "cancelled"
+  ): Promise<void> {
+    if (!this.deps.learningEngine) {
+      return;
+    }
+
+    // Only analyze on completion or failure (skip if manually cancelled early)
+    if (finalStatus !== "completed" && finalStatus !== "failed" && finalStatus !== "timed-out") {
+      return;
+    }
+
+    try {
+      console.log(`[Orchestrator] Triggering post-run learning analysis for ${runId}...`);
+      const analysis = await this.deps.learningEngine.analyze(runId, scope);
+      console.log(`[Orchestrator] Learning analysis complete: ${analysis.suggestedSkills.length} skills suggested, ${analysis.routingScoreUpdates.length} routing scores updated`);
+    } catch (error) {
+      // Log error but don't fail the workflow - learning is best-effort
+      console.error(`[Orchestrator] Post-run learning analysis failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   private async failWorkflow(state: WorkflowRecord, error: FrameworkError): Promise<void> {
@@ -807,6 +866,9 @@ export class ProductionOrchestrator implements AgentOrchestrator {
       routingDecisionCount: state.routingDecisions.length,
     });
     await this.sendNotifications(state, state.status, error.message);
+    
+    // Trigger post-run learning analysis even on failure (for learning from failures)
+    await this.runPostRunLearning(state.runId, state.scope, state.status);
   }
 
   private async resolveRoutingDecision(

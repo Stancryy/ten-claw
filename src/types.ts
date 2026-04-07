@@ -823,6 +823,10 @@ export interface LLMGateway {
 
 /** Optional learning subsystem that extracts skills and updates routing hints. */
 export interface LearningEngine {
+  analyze(runId: RunId, scope: TenantScope): Promise<{
+    suggestedSkills: unknown[];
+    routingScoreUpdates: unknown[];
+  }>;
   recordRun(
     context: AgentRunContext,
     result: AgentResult,
