@@ -93,6 +93,8 @@ export class FileSystemSkillSource {
         : null,
       join(this.config.rootDirectory, scope.tenantId),
       join(this.config.rootDirectory, scope.tenantId, scope.workspaceId),
+      // Load approved learned skills
+      join(this.config.rootDirectory, "approved"),
     ].filter((value): value is string => Boolean(value));
 
     const filePaths = new Set<string>();
