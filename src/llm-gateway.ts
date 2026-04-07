@@ -162,8 +162,125 @@ export class BudgetAwareLLMGateway implements LLMGateway {
     return estimatePromptTokens(request.prompts);
   }
 
+  /** Validates LLM request inputs before sending to provider */
+  private validateRequest(request: LLMRequest): void {
+    // Validate modelProfile exists
+    if (!request.modelProfile) {
+      throw {
+        code: "validation-error",
+        message: "Missing required field: modelProfile is required",
+        retryable: false,
+      } satisfies FrameworkError;
+    }
+
+    // Validate modelProfile.provider
+    if (!request.modelProfile.provider) {
+      throw {
+        code: "validation-error",
+        message: "Missing required field: modelProfile.provider is required",
+        retryable: false,
+      } satisfies FrameworkError;
+    }
+
+    // Validate modelProfile.model
+    if (!request.modelProfile.model) {
+      throw {
+        code: "validation-error",
+        message: "Missing required field: modelProfile.model is required",
+        retryable: false,
+      } satisfies FrameworkError;
+    }
+
+    // Validate prompts (messages)
+    if (!request.prompts || !Array.isArray(request.prompts)) {
+      throw {
+        code: "validation-error",
+        message: "Missing or invalid field: prompts must be a non-empty array",
+        retryable: false,
+      } satisfies FrameworkError;
+    }
+
+    if (request.prompts.length === 0) {
+      throw {
+        code: "validation-error",
+        message: "Missing required field: prompts array cannot be empty",
+        retryable: false,
+      } satisfies FrameworkError;
+    }
+
+    // Validate each prompt has required fields
+    for (let i = 0; i < request.prompts.length; i++) {
+      const prompt = request.prompts[i];
+      if (!prompt || typeof prompt !== "object") {
+        throw {
+          code: "validation-error",
+          message: `Invalid prompt at index ${i}: prompt must be an object`,
+          retryable: false,
+        } satisfies FrameworkError;
+      }
+
+      if (!prompt.role || typeof prompt.role !== "string") {
+        throw {
+          code: "validation-error",
+          message: `Invalid prompt at index ${i}: role is required and must be a string`,
+          retryable: false,
+        } satisfies FrameworkError;
+      }
+
+      if (!prompt.content || typeof prompt.content !== "string") {
+        throw {
+          code: "validation-error",
+          message: `Invalid prompt at index ${i}: content is required and must be a string`,
+          retryable: false,
+        } satisfies FrameworkError;
+      }
+    }
+
+    // Validate maxOutputTokens
+    if (request.maxOutputTokens === undefined || request.maxOutputTokens === null) {
+      throw {
+        code: "validation-error",
+        message: "Missing required field: maxOutputTokens is required",
+        retryable: false,
+      } satisfies FrameworkError;
+    }
+
+    if (typeof request.maxOutputTokens !== "number" || request.maxOutputTokens <= 0) {
+      throw {
+        code: "validation-error",
+        message: `Invalid field: maxOutputTokens must be a positive number, got ${typeof request.maxOutputTokens === "number" ? request.maxOutputTokens : typeof request.maxOutputTokens}`,
+        retryable: false,
+      } satisfies FrameworkError;
+    }
+
+    // Validate budget exists
+    if (!request.budget || typeof request.budget !== "object") {
+      throw {
+        code: "validation-error",
+        message: "Missing required field: budget is required",
+        retryable: false,
+      } satisfies FrameworkError;
+    }
+
+    // Validate budget token limits
+    const requiredBudgetFields = ["maxInputTokens", "maxOutputTokens", "maxTotalTokens"] as const;
+    for (const field of requiredBudgetFields) {
+      const value = request.budget[field];
+      if (typeof value !== "number" || value < 0) {
+        throw {
+          code: "validation-error",
+          message: `Invalid field: budget.${field} must be a non-negative number, got ${typeof value === "number" ? value : typeof value}`,
+          retryable: false,
+        } satisfies FrameworkError;
+      }
+    }
+  }
+
   /** Generates a response with fallback routing and token-budget enforcement. */
   async generate(request: LLMRequest): Promise<LLMResponse> {
+    // Validate input before processing
+    this.validateRequest(request);
+    
     const models = expandModelFallbacks(request.modelProfile);
     let lastError: FrameworkError | null = null;
 

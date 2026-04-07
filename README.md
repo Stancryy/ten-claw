@@ -1,28 +1,226 @@
-# TenClaw
+# TenClaw v1.5.0
 
 TypeScript framework for multi-agent team orchestration, focused on production readiness, multi-tenant isolation, hybrid memory, declarative/learned routing, and multi-provider LLM integration.
 
 ## Overview
 
-TenClaw organizes workflows of specialized agents (for example: `planner`, `coder`, `reviewer`, `tester`, `security-auditor`) and content pipelines (`researcher`, `writer`, `editor`) through:
+TenClaw organizes workflows of specialized agents through message-based orchestration with typed handoff, persistent workflow state, and semantic memory.
 
-- message-based orchestration with typed handoff;
-- persistent workflow state and semantic memory;
-- YAML/JSON skill registry with support for learned skills;
-- LLM gateway with token budgeting, fallback, and circuit breaker;
-- human approvals, audit logging, and notifications (Telegram/Discord/WhatsApp);
-- decoupled bootstrap interfaces for plugging in real infrastructure.
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            TENCLAW ARCHITECTURE                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│   dev-team   │     │business-team │     │  (custom)    │
+│   (YAML)     │     │   (YAML)     │     │   teams      │
+└──────┬───────┘     └──────┬───────┘     └──────┬───────┘
+       │                    │                    │
+       └────────────────────┼────────────────────┘
+                            │
+                            ▼
+              ┌─────────────────────────┐
+              │ ProductionOrchestrator  │
+              │  - Workflow lifecycle   │
+              │  - Agent handoff        │
+              │  - Routing decisions    │
+              └───────────┬─────────────┘
+                          │
+       ┌──────────────────┼──────────────────┐
+       │                  │                  │
+       ▼                  ▼                  ▼
+┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+│  TaskRouter  │  │ WorkflowState│  │   Learning   │
+│(declarative  │  │    Store     │  │    Engine    │
+│  + learned)  │  │   (Redis)    │  │              │
+└──────────────┘  └──────────────┘  └──────────────┘
+       │                  │                  │
+       └──────────────────┼──────────────────┘
+                          │
+                          ▼
+              ┌─────────────────────────┐
+              │   Agent Runtime Layer   │
+              │  - Platform adapters    │
+              │  - LLM Gateway          │
+              │  - Provider adapters    │
+              └───────────┬─────────────┘
+                          │
+       ┌──────────────────┼──────────────────┐
+       │                  │                  │
+       ▼                  ▼                  ▼
+┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+│    LLM       │  │   Memory     │  │   Audit      │
+│  Providers   │  │   Stores     │  │   Logger     │
+│  (Redis)     │  │ (Chroma/Redis│  │  (Redis)     │
+└──────────────┘  └──────────────┘  └──────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+                              AGENT PIPELINES
+═══════════════════════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           DEVELOPMENT DELIVERY TEAM                           │
+│                          (teams/dev-team.yaml)                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    ┌─────────┐        ┌─────────┐        ┌─────────┐        ┌─────────┐
+    │ PLANNER │───────▶│  CODER  │───────▶│ REVIEWER│───────▶│  TESTER │
+    │         │        │         │        │         │        │         │
+    │ - Break │        │ - Impl  │        │ - Code  │        │ - Unit  │
+    │   down  │        │   task  │        │   review│        │   tests │
+    │ - Create│        │ - Follow│        │ - Suggest│       │ - Edge  │
+    │   sub-  │        │   coding│        │   fixes │        │   cases │
+    │   tasks │        │   stds  │        │         │        │         │
+    └─────────┘        └─────────┘        └─────────┘        └────┬────┘
+         │                                                          │
+         │                                                          ▼
+         │                                                   ┌─────────────┐
+         │                                                   │  SECURITY   │
+         │                                                   │   AUDITOR   │
+         │                                                   │             │
+         │                                                   │ - Vuln scan │
+         │                                                   │ - SAST/DAST │
+         │                                                   │ - Compliant │
+         │                                                   └──────┬──────┘
+         │                                                          │
+         └──────────────────────────┬───────────────────────────────┘
+                                    │
+                                    ▼
+                           ┌────────────────┐
+                           │   COMPLETED    │
+                           │   WORKFLOW     │
+                           └────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           BUSINESS CONTENT TEAM                               │
+│                        (teams/business-team.yaml)                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    ┌───────────┐        ┌───────────┐        ┌───────────┐
+    │ RESEARCHER│───────▶│   WRITER  │───────▶│   EDITOR  │
+    │           │        │           │        │           │
+    │ - Gather  │        │ - Create  │        │ - Review  │
+    │   info    │        │   content │        │   content │
+    │ - Synthesize│      │ - Structure│       │ - Polish  │
+    │ - Fact check│      │ - Tone set │       │ - Final   │
+    └───────────┘        └───────────┘        └─────┬─────┘
+                                                    │
+                                                    ▼
+                                           ┌────────────────┐
+                                           │   COMPLETED    │
+                                           │   WORKFLOW     │
+                                           └────────────────┘
+```
+
+## Quick Start
+
+### 1. Start Infrastructure
+
+```bash
+npm run infra:up
+```
+
+Starts Redis and ChromaDB via Docker Compose.
+
+### 2. Start LM Studio (Local LLM)
+
+1. Download and install [LM Studio](https://lmstudio.ai/)
+2. Load a model (e.g., `llama3.1-8b`)
+3. Start the local server on port 1234
+4. Set in `.env`: `LLM_PROVIDER=lmstudio`
+
+### 3. Run the Demo
+
+```bash
+# Development team demo
+npm run demo
+
+# Or with specific team
+TEAM=dev npm run demo
+TEAM=business npm run demo
+```
+
+### 4. Launch Dashboard (Optional)
+
+```bash
+npm run dashboard
+```
+
+Opens at `http://localhost:3003` with real-time monitoring.
+
+## Available NPM Scripts
+
+| Script | Description |
+|--------|-------------|
+| `npm run demo` | Run the full demo with configured team |
+| `npm run dashboard` | Start the web dashboard (port 3003) |
+| `npm run skills:review` | Review pending learned skills |
+| `npm run infra:up` | Start Redis + ChromaDB containers |
+| `npm run infra:down` | Stop infrastructure |
+| `npm run build` | TypeScript compilation |
+| `npm run typecheck` | Type-only check |
+| `npm run start` | Run compiled output |
+
+## Team Definitions
+
+### Development Delivery Team (`teams/dev-team.yaml`)
+
+```yaml
+id: "dev-team"
+name: "Development Delivery Team"
+entryAgentId: "planner"
+agents:
+  - id: "planner"      # Task breakdown and planning
+  - id: "coder"        # Implementation
+  - id: "reviewer"     # Code review
+  - id: "tester"       # Testing
+  - id: "security-auditor"  # Security audit
+```
+
+### Business Content Team (`teams/business-team.yaml`)
+
+```yaml
+id: "business-team"
+name: "Business Content Team"
+entryAgentId: "researcher"
+agents:
+  - id: "researcher"   # Information gathering
+  - id: "writer"       # Content creation
+  - id: "editor"       # Review and polish
+```
 
 ## Core Features
 
-- **Production orchestrator**: `ProductionOrchestrator` controls the full workflow lifecycle (`queued`, `running`, `awaiting-approval`, `completed`, `failed`, `timed-out`, `cancelled`).
-- **Explicit agent handoff**: driven by `AgentResult.handoff.disposition` (`route`, `retry`, `complete`, `await-approval`, etc.).
-- **Declarative + learned routing**: `DeclarativeTaskRouter` with `team.yaml` rules and `LearningEngine` suggestions.
-- **Hybrid memory**: KV session state (`SessionStateStore`) + vector memory (`MemoryStore`) + skill indexing.
-- **Versionable file-based skills**: libraries under `skills/` with learned skills under `skills/learned/`.
-- **Multi-provider LLM integration**: OpenAI, Anthropic, Google Gemini, Groq, and Ollama via adapters.
-- **Durable execution infrastructure**: modules for durable queues, workflow engine, idempotency, DLQ, and circuit breaker.
-- **Observability and compliance**: Redis Streams audit logging and human approval trail.
+- **Production orchestrator**: Full workflow lifecycle (`queued`, `running`, `awaiting-approval`, `completed`, `failed`, `timed-out`, `cancelled`)
+- **Explicit agent handoff**: `AgentResult.handoff.disposition` (`route`, `retry`, `complete`, `await-approval`)
+- **Declarative + learned routing**: `DeclarativeTaskRouter` with YAML rules and `LearningEngine`
+- **Hybrid memory**: KV session state + vector memory + skill indexing
+- **Multi-provider LLM**: OpenAI, Anthropic, Gemini, Groq, Ollama, LM Studio
+- **Dashboard v1.5.0**: Real-time monitoring with cleanup endpoint
+- **Audit logging**: Redis Streams for compliance
+
+## Directory Structure
+
+```
+ten-claw/
+├── src/              # Framework core
+│   ├── dashboard/    # Dashboard server (v1.5.0)
+│   ├── notifiers/    # Telegram/Discord/WhatsApp
+│   └── *.ts          # Core modules
+├── examples/         # Demo scripts
+├── teams/            # Team YAML definitions
+├── skills/           # Skills library
+│   ├── dev/          # Development skills
+│   ├── business/     # Content skills
+│   └── learned/      # Auto-extracted skills
+├── prompts/          # Agent prompts
+├── docker-compose.yml
+└── README.md
+```
+
+## API Example
 
 ## Architecture (Summary)
 
