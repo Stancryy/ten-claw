@@ -23,7 +23,8 @@
     "infra:up": "docker compose up -d",
     "infra:down": "docker compose down",
     "demo": "npx ts-node examples/run.ts",
-    "skills:review": "npx ts-node scripts/skills-review.ts"
+    "skills:review": "npx ts-node scripts/skills-review.ts",
+    "dashboard": "npx ts-node src/dashboard/server.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.33.0",

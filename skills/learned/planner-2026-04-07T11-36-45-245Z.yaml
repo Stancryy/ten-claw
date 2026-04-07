@@ -1,0 +1,115 @@
+schemaVersion: "1.0.0"
+id: "learned-planner-1775561805210"
+name: "Learned Task Planner Skill"
+version: "1.0.0"
+description: "Auto-generated skill for planner based on 1 successful executions with consistent output structure"
+tags:
+  - "learned"
+  - "auto-generated"
+  - "planner"
+role: "planner"
+inputSchema:
+  type: "object"
+  required:
+    - "goal"
+  properties:
+    goal:
+      type: "string"
+      description: "The user's high-level objective or feature request"
+    context:
+      type: "object"
+      description: "Additional context about the codebase, constraints, or preferences"
+      properties:
+        techStack:
+          type: "array"
+          items:
+            type: "string"
+          description: "Technologies and frameworks in use"
+        existingFiles:
+          type: "array"
+          items:
+            type: "string"
+          description: "Relevant existing files in the codebase"
+        constraints:
+          type: "array"
+          items:
+            type: "string"
+          description: "Constraints like time, dependencies, or architectural decisions"
+outputSchema:
+  type: "object"
+  properties:
+    plan:
+      type: "string"
+      description: "High-level summary of the implementation approach"
+    steps:
+      type: "array"
+      items:
+        type: "object"
+        required:
+          - "id"
+          - "description"
+          - "acceptanceCriteria"
+        properties:
+          id:
+            type: "string"
+            description: "Unique identifier for this step"
+          description:
+            type: "string"
+            description: "What this step accomplishes"
+          acceptanceCriteria:
+            type: "array"
+            items:
+              type: "string"
+            description: "Specific conditions that define success for this step"
+          estimatedEffort:
+            type: "string"
+            enum:
+              - "small"
+              - "medium"
+              - "large"
+            description: "Rough effort estimate"
+          dependencies:
+            type: "array"
+            items:
+              type: "string"
+            description: "IDs of steps that must complete before this one"
+          assignedRole:
+            type: "string"
+            enum:
+              - "planner"
+              - "coder"
+              - "reviewer"
+            description: "Which agent role should execute this step"
+    risks:
+      type: "array"
+      items:
+        type: "object"
+        properties:
+          description:
+            type: "string"
+          mitigation:
+            type: "string"
+    totalEstimatedEffort:
+      type: "string"
+      description: "Summary of overall effort required"
+    response:
+      type: "string"
+  required:
+    - "response"
+capabilities:
+  - "learned-pattern"
+  - "planner"
+learnedFrom:
+  runIds:
+    - "run_1775561379927_8b2wfn6c"
+  agentId: "planner"
+  extractedAt: "2026-04-07T11:36:45.211Z"
+  confidenceScore: 1.00
+  patternType: "successful-agent-sequence"
+qualityMetrics:
+  successRate: 1.00
+  averageLatencyMs: 84536
+  averageTokenUsage: 0
+  sampleSize: 1
+approvedForUse: false
+reviewStatus: "pending"
