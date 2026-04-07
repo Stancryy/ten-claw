@@ -887,6 +887,105 @@ export class LearningEngineImpl implements LearningEngine {
     return this.inferOutputSchema(input) as JsonObject;
   }
 
+  /**
+   * Find the base skill for an agent role from existing skills.
+   * Matches by role (e.g., "coder" → typescript-coding.yaml)
+   */
+  private async findBaseSkillForAgent(
+    scope: TenantScope,
+    agentRole: AgentRole,
+    existingSkills: SkillDefinition[]
+  ): Promise<SkillDefinition | null> {
+    // Find a skill where role matches
+    const baseSkill = existingSkills.find(skill => skill.role === agentRole);
+    if (baseSkill) {
+      console.log(`[LearningEngine] Found base skill for ${agentRole}: ${baseSkill.id}`);
+    } else {
+      console.log(`[LearningEngine] No base skill found for role: ${agentRole}`);
+    }
+    return baseSkill || null;
+  }
+
+  /**
+   * Generate merged output schema using base skill schema as starting point,
+   * then cross-reference with observed output to detect populated fields.
+   * Fields present in base schema but not observed are marked as optional.
+   * Fields present in observed output but not in base are added.
+   */
+  private generateMergedOutputSchema(
+    baseSchema: JsonObject | undefined,
+    observedOutput: unknown
+  ): JsonObject {
+    // If no base schema, fall back to inferring from observed output
+    if (!baseSchema || baseSchema.type !== "object") {
+      console.log(`[LearningEngine] No base schema available, inferring from observed output`);
+      return this.inferOutputSchema(observedOutput);
+    }
+
+    const baseProps = (baseSchema.properties as Record<string, JsonObject>) || {};
+    const observedObj = (observedOutput as Record<string, unknown>) || {};
+    const observedKeys = Object.keys(observedObj);
+
+    console.log(`[LearningEngine] Merging schemas - base fields: ${Object.keys(baseProps).join(', ')}, observed: ${observedKeys.join(', ')}`);
+
+    const mergedProperties: Record<string, JsonObject> = {};
+
+    // Process all base schema fields
+    for (const [key, baseFieldSchema] of Object.entries(baseProps)) {
+      const wasObserved = key in observedObj;
+      
+      if (wasObserved) {
+        // Field was observed - use observed type but preserve base structure for nested objects
+        const observedValue = observedObj[key];
+        const observedType = this.inferOutputSchema(observedValue);
+        
+        // For objects, recursively merge; for primitives, prefer observed type
+        if (baseFieldSchema.type === "object" && observedValue && typeof observedValue === "object" && !Array.isArray(observedValue)) {
+          mergedProperties[key] = this.generateMergedOutputSchema(baseFieldSchema, observedValue);
+        } else if (baseFieldSchema.type === "array" && Array.isArray(observedValue) && observedValue.length > 0) {
+          // For arrays, merge item schemas
+          const baseItemSchema = (baseFieldSchema.items as JsonObject) || { type: "object" };
+          const observedItemSchema = this.inferOutputSchema(observedValue[0]);
+          mergedProperties[key] = {
+            ...baseFieldSchema,
+            items: baseItemSchema.type === "object" 
+              ? this.generateMergedOutputSchema(baseItemSchema, observedValue[0])
+              : observedItemSchema
+          };
+        } else {
+          // Use base schema but update type if observed type differs
+          mergedProperties[key] = {
+            ...baseFieldSchema,
+            type: observedType.type || baseFieldSchema.type
+          };
+        }
+        
+        // Remove "required" marker since we observed it
+        const { required, ...restSchema } = mergedProperties[key];
+        mergedProperties[key] = restSchema;
+      } else {
+        // Field not observed - keep from base schema but mark as optional
+        mergedProperties[key] = baseFieldSchema;
+      }
+    }
+
+    // Add fields that were observed but not in base schema
+    for (const key of observedKeys) {
+      if (!(key in baseProps)) {
+        console.log(`[LearningEngine] Adding observed field not in base schema: ${key}`);
+        mergedProperties[key] = this.inferOutputSchema(observedObj[key]);
+      }
+    }
+
+    const requiredFields = Object.keys(mergedProperties).filter(k => k in observedObj);
+
+    return {
+      type: "object",
+      properties: mergedProperties,
+      ...(requiredFields.length > 0 ? { required: requiredFields } : {})
+    };
+  }
+
   /** Find consistent schema across multiple schemas */
   private findConsistentSchema(schemas: JsonObject[]): JsonObject | null {
     if (schemas.length === 0) return null;
@@ -1052,9 +1151,10 @@ export class LearningEngineImpl implements LearningEngine {
 
       if (matchesExistingSkill) continue;
 
-      // Generate candidate
-      const outputSchema = this.inferOutputSchema(output);
-      const inputSchema = agentExecs.length > 0 && agentExecs[0]!.input ? this.inferInputSchema(agentExecs[0]!.input) : { type: "object" };
+      // Find base skill for this agent role and merge with observed output
+      const baseSkill = await this.findBaseSkillForAgent(scope, agent.agentRole, existingSkills);
+      const outputSchema = this.generateMergedOutputSchema(baseSkill?.outputSchema, output);
+      const inputSchema = baseSkill?.inputSchema ?? (agentExecs.length > 0 && agentExecs[0]!.input ? this.inferInputSchema(agentExecs[0]!.input) : { type: "object" });
 
       const candidate: LearnedSkillCandidate = {
         schemaVersion: "1.0.0",

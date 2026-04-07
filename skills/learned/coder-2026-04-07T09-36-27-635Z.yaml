@@ -1,0 +1,150 @@
+schemaVersion: "1.0.0"
+id: "learned-coder-1775554587606"
+name: "Learned Implementation Coder Skill"
+version: "1.0.0"
+description: "Auto-generated skill for coder based on 1 successful executions with consistent output structure"
+tags:
+  - "learned"
+  - "auto-generated"
+  - "coder"
+role: "coder"
+inputSchema:
+  type: "object"
+  required:
+    - "plan"
+    - "step"
+  properties:
+    plan:
+      type: "object"
+      description: "The complete implementation plan from the planner"
+      properties:
+        plan:
+          type: "string"
+        steps:
+          type: "array"
+    step:
+      type: "object"
+      description: "The specific step this coder should implement"
+      required:
+        - "id"
+        - "description"
+        - "acceptanceCriteria"
+      properties:
+        id:
+          type: "string"
+        description:
+          type: "string"
+        acceptanceCriteria:
+          type: "array"
+          items:
+            type: "string"
+        dependencies:
+          type: "array"
+          items:
+            type: "string"
+    context:
+      type: "object"
+      description: "Codebase context and constraints"
+      properties:
+        existingFiles:
+          type: "array"
+          items:
+            type: "string"
+        techStack:
+          type: "array"
+          items:
+            type: "string"
+        patterns:
+          type: "array"
+          items:
+            type: "string"
+          description: "Established patterns to follow"
+outputSchema:
+  type: "object"
+  properties:
+    code:
+      type: "array"
+      description: "Generated or modified code files"
+      items:
+        type: "object"
+        required:
+          - "filePath"
+          - "content"
+          - "operation"
+        properties:
+          filePath:
+            type: "string"
+            description: "Relative path to the file"
+          content:
+            type: "string"
+            description: "Complete file content"
+          operation:
+            type: "string"
+            enum:
+              - "create"
+              - "update"
+              - "delete"
+            description: "Type of operation performed"
+          explanation:
+            type: "string"
+            description: "Why this file was created/modified"
+    summary:
+      type: "string"
+      description: "Brief summary of changes made"
+    tests:
+      type: "array"
+      description: "Suggested test cases"
+      items:
+        type: "object"
+        properties:
+          description:
+            type: "string"
+          testType:
+            type: "string"
+            enum:
+              - "unit"
+              - "integration"
+              - "e2e"
+    dependencies:
+      type: "array"
+      description: "New dependencies required"
+      items:
+        type: "object"
+        properties:
+          name:
+            type: "string"
+          version:
+            type: "string"
+          devDependency:
+            type: "boolean"
+    typeDefinitions:
+      type: "array"
+      description: "New or modified TypeScript types/interfaces"
+      items:
+        type: "object"
+        properties:
+          name:
+            type: "string"
+          definition:
+            type: "string"
+    response:
+      type: "string"
+  required:
+    - "response"
+capabilities:
+  - "learned-pattern"
+  - "coder"
+learnedFrom:
+  runIds:
+    - "run_1775554200613_wi0qpbri"
+  agentId: "coder"
+  extractedAt: "2026-04-07T09:36:27.606Z"
+  confidenceScore: 1.00
+  patternType: "successful-agent-sequence"
+qualityMetrics:
+  successRate: 1.00
+  averageLatencyMs: 79367
+  averageTokenUsage: 0
+  sampleSize: 1
+approvedForUse: false
+reviewStatus: "pending"

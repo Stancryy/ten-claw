@@ -1,0 +1,165 @@
+schemaVersion: "1.0.0"
+id: "learned-security-auditor-1775554156071"
+name: "Learned Security Auditor Skill"
+version: "1.0.0"
+description: "Auto-generated skill for security-auditor based on 1 successful executions with consistent output structure"
+tags:
+  - "learned"
+  - "auto-generated"
+  - "security-auditor"
+role: "security-auditor"
+inputSchema:
+  type: "object"
+  required:
+    - "code"
+    - "tests"
+  properties:
+    code:
+      type: "object"
+      description: "The code and test files to audit"
+      properties:
+        sourceFiles:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              path:
+                type: "string"
+              content:
+                type: "string"
+        testFiles:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              path:
+                type: "string"
+              content:
+                type: "string"
+    requirements:
+      type: "array"
+      items:
+        type: "string"
+      description: "Original requirements for context"
+    context:
+      type: "object"
+      properties:
+        techStack:
+          type: "array"
+          items:
+            type: "string"
+        sensitiveDataTypes:
+          type: "array"
+          items:
+            type: "string"
+outputSchema:
+  type: "object"
+  properties:
+    findings:
+      type: "array"
+      items:
+        type: "object"
+        required:
+          - "severity"
+          - "category"
+          - "title"
+          - "description"
+          - "location"
+        properties:
+          severity:
+            type: "string"
+            enum:
+              - "critical"
+              - "high"
+              - "medium"
+              - "low"
+              - "info"
+          category:
+            type: "string"
+            enum:
+              - "injection"
+              - "input-validation"
+              - "secrets-exposure"
+              - "unsafe-regex"
+              - "xss"
+              - "authentication"
+              - "authorization"
+              - "data-exposure"
+              - "other"
+          title:
+            type: "string"
+          description:
+            type: "string"
+          location:
+            type: "object"
+            properties:
+              file:
+                type: "string"
+              line:
+                type: "number"
+              snippet:
+                type: "string"
+          remediation:
+            type: "string"
+          references:
+            type: "array"
+            items:
+              type: "string"
+    summary:
+      type: "object"
+      properties:
+        total:
+          type: "number"
+        critical:
+          type: "number"
+        high:
+          type: "number"
+        medium:
+          type: "number"
+        low:
+          type: "number"
+        info:
+          type: "number"
+        overallRisk:
+          type: "string"
+          enum:
+            - "critical"
+            - "high"
+            - "medium"
+            - "low"
+            - "none"
+        recommendation:
+          type: "string"
+    riskLevel:
+      type: "string"
+      enum:
+        - "critical"
+        - "high"
+        - "medium"
+        - "low"
+        - "none"
+      description: "Overall risk assessment"
+    auditReport:
+      type: "string"
+      description: "Detailed security audit report"
+    response:
+      type: "string"
+  required:
+    - "response"
+capabilities:
+  - "learned-pattern"
+  - "security-auditor"
+learnedFrom:
+  runIds:
+    - "run_1775553760941_dxc2oepn"
+  agentId: "security-auditor"
+  extractedAt: "2026-04-07T09:29:16.071Z"
+  confidenceScore: 1.00
+  patternType: "successful-agent-sequence"
+qualityMetrics:
+  successRate: 1.00
+  averageLatencyMs: 79916
+  averageTokenUsage: 0
+  sampleSize: 1
+approvedForUse: false
+reviewStatus: "pending"

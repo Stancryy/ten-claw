@@ -1,0 +1,104 @@
+schemaVersion: "1.0.0"
+id: "learned-tester-1775554156063"
+name: "Learned Quality Assurance Tester Skill"
+version: "1.0.0"
+description: "Auto-generated skill for tester based on 1 successful executions with consistent output structure"
+tags:
+  - "learned"
+  - "auto-generated"
+  - "tester"
+role: "tester"
+inputSchema:
+  type: "object"
+  required:
+    - "code"
+    - "requirements"
+  properties:
+    code:
+      type: "object"
+      description: "The code produced by the implementation coder"
+      properties:
+        files:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              path:
+                type: "string"
+              content:
+                type: "string"
+        entryPoint:
+          type: "string"
+    requirements:
+      type: "array"
+      items:
+        type: "string"
+      description: "List of requirements the code must satisfy"
+    constraints:
+      type: "array"
+      items:
+        type: "string"
+      description: "Constraints for test generation (e.g., framework, coverage targets)"
+outputSchema:
+  type: "object"
+  properties:
+    testFiles:
+      type: "array"
+      items:
+        type: "object"
+        properties:
+          path:
+            type: "string"
+          content:
+            type: "string"
+      description: "Generated test files with Jest tests"
+    coverageReport:
+      type: "object"
+      properties:
+        lines:
+          type: "number"
+        statements:
+          type: "number"
+        functions:
+          type: "number"
+        branches:
+          type: "number"
+        summary:
+          type: "string"
+    testResults:
+      type: "object"
+      properties:
+        total:
+          type: "number"
+        passing:
+          type: "number"
+        failing:
+          type: "number"
+        duration:
+          type: "string"
+        summary:
+          type: "string"
+    testPlan:
+      type: "string"
+      description: "Description of the testing strategy and coverage approach"
+    response:
+      type: "string"
+  required:
+    - "response"
+capabilities:
+  - "learned-pattern"
+  - "tester"
+learnedFrom:
+  runIds:
+    - "run_1775553760941_dxc2oepn"
+  agentId: "tester"
+  extractedAt: "2026-04-07T09:29:16.063Z"
+  confidenceScore: 1.00
+  patternType: "successful-agent-sequence"
+qualityMetrics:
+  successRate: 1.00
+  averageLatencyMs: 81226
+  averageTokenUsage: 0
+  sampleSize: 1
+approvedForUse: false
+reviewStatus: "pending"
