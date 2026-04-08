@@ -1,0 +1,35 @@
+{
+  "name": "Data Analytics Team",
+  "id": "data-team",
+  "description": "Team for data analysis and report generation",
+  "agents": [
+    {
+      "id": "data-analyst",
+      "name": "Data Analyst",
+      "role": "analyst",
+      "capabilities": [
+        "data-analysis",
+        "sql",
+        "visualization"
+      ],
+      "modelProfile": {
+        "provider": "openai",
+        "providerModelId": "gpt-4o"
+      }
+    },
+    {
+      "id": "report-generator",
+      "name": "Report Generator",
+      "role": "writer",
+      "capabilities": [
+        "report-writing",
+        "summarization",
+        "charting"
+      ],
+      "modelProfile": {
+        "provider": "anthropic",
+        "providerModelId": "claude-3-sonnet"
+      }
+    }
+  ]
+}

@@ -1,12 +1,15 @@
 {
   "name": "tenclaw",
-  "version": "0.1.0",
-  "description": "Production-oriented TypeScript multi-agent orchestration framework with pluggable memory, workflow persistence, and multi-LLM backends.",
+  "version": "1.6.0",
+  "description": "Self-optimizing multi-agent TypeScript framework with pluggable memory, workflow persistence, and multi-LLM backends.",
   "license": "UNLICENSED",
   "private": true,
   "type": "commonjs",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "bin": {
+    "tenclaw": "dist/cli/index.js"
+  },
   "files": [
     "dist",
     "README.md",
@@ -28,15 +31,19 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.33.0",
+    "chalk": "^4.1.2",
     "chromadb": "^2.0.0",
     "chromadb-default-embed": "^2.14.0",
+    "commander": "^11.1.0",
     "dotenv": "^17.4.1",
+    "inquirer": "^9.2.12",
     "ioredis": "^5.6.0",
     "js-tiktoken": "^1.0.15",
     "openai": "^4.77.0",
     "yaml": "^2.8.1"
   },
   "devDependencies": {
+    "@types/inquirer": "^9.0.7",
     "@types/node": "^20.17.30",
     "typescript": "^5.4.5"
   }
